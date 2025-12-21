@@ -29,17 +29,19 @@ type TableJSON struct {
 	Def              string        `json:"def,omitempty"`
 	Labels           Labels        `json:"labels,omitempty"`
 	ReferencedTables []string      `json:"referenced_tables,omitempty"`
+	Stats            *TableStats   `json:"stats,omitempty"`
 }
 
 // ColumnJSON is a JSON representation of schema.Column.
 type ColumnJSON struct {
-	Name     string  `json:"name"`
-	Type     string  `json:"type"`
-	Nullable bool    `json:"nullable"`
-	Default  *string `json:"default,omitempty" jsonschema:"anyof_type=string;null"`
-	ExtraDef string  `json:"extra_def,omitempty"`
-	Labels   Labels  `json:"labels,omitempty"`
-	Comment  string  `json:"comment,omitempty"`
+	Name     string       `json:"name"`
+	Type     string       `json:"type"`
+	Nullable bool         `json:"nullable"`
+	Default  *string      `json:"default,omitempty" jsonschema:"anyof_type=string;null"`
+	ExtraDef string       `json:"extra_def,omitempty"`
+	Labels   Labels       `json:"labels,omitempty"`
+	Comment  string       `json:"comment,omitempty"`
+	Stats    *ColumnStats `json:"stats,omitempty"`
 }
 
 // RelationJSON is a JSON representation of schema.Relation.
@@ -112,6 +114,7 @@ func (t Table) ToJSONObject() TableJSON {
 		Def:              t.Def,
 		Labels:           t.Labels,
 		ReferencedTables: referencedTables,
+		Stats:            t.Stats,
 	}
 }
 
@@ -128,6 +131,7 @@ func (c Column) ToJSONObject() ColumnJSON {
 		Comment:  c.Comment,
 		ExtraDef: c.ExtraDef,
 		Labels:   c.Labels,
+		Stats:    c.Stats,
 	}
 }
 
@@ -214,6 +218,7 @@ func (t *Table) UnmarshalJSON(data []byte) error {
 		Def              string        `json:"def,omitempty"`
 		Labels           Labels        `json:"labels,omitempty"`
 		ReferencedTables []string      `json:"referenced_tables,omitempty"`
+		Stats            *TableStats   `json:"stats,omitempty"`
 	}{}
 	err := json.Unmarshal(data, &s)
 	if err != nil {
@@ -228,6 +233,7 @@ func (t *Table) UnmarshalJSON(data []byte) error {
 	t.Triggers = s.Triggers
 	t.Def = s.Def
 	t.Labels = s.Labels
+	t.Stats = s.Stats
 	for _, rt := range s.ReferencedTables {
 		t.ReferencedTables = append(t.ReferencedTables, &Table{
 			Name: rt,
@@ -239,13 +245,14 @@ func (t *Table) UnmarshalJSON(data []byte) error {
 // UnmarshalJSON unmarshal JSON to schema.Column.
 func (c *Column) UnmarshalJSON(data []byte) error {
 	s := struct {
-		Name     string  `json:"name"`
-		Type     string  `json:"type"`
-		Nullable bool    `json:"nullable"`
-		Default  *string `json:"default,omitempty"`
-		Comment  string  `json:"comment,omitempty"`
-		ExtraDef string  `json:"extra_def,omitempty"`
-		Labels   Labels  `json:"labels,omitempty"`
+		Name     string       `json:"name"`
+		Type     string       `json:"type"`
+		Nullable bool         `json:"nullable"`
+		Default  *string      `json:"default,omitempty"`
+		Comment  string       `json:"comment,omitempty"`
+		ExtraDef string       `json:"extra_def,omitempty"`
+		Labels   Labels       `json:"labels,omitempty"`
+		Stats    *ColumnStats `json:"stats,omitempty"`
 	}{}
 	err := json.Unmarshal(data, &s)
 	if err != nil {
@@ -264,6 +271,7 @@ func (c *Column) UnmarshalJSON(data []byte) error {
 	c.ExtraDef = s.ExtraDef
 	c.Labels = s.Labels
 	c.Comment = s.Comment
+	c.Stats = s.Stats
 	return nil
 }
 

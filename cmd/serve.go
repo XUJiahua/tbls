@@ -66,7 +66,7 @@ func handleSchema(c *gin.Context) {
 	}
 
 	// Analyze database
-	s, err := datasource.Analyze(cfg.DSN)
+	s, err := datasource.AnalyzeWithStats(cfg.DSN, &cfg)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
