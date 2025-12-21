@@ -437,7 +437,7 @@ func (c *Config) ModifySchema(s *schema.Schema) error {
 		if err != nil {
 			return err
 		}
-		mergeDetectedRelations(s, strategy)
+		MergeDetectedRelations(s, strategy)
 	}
 	c.mergeDictFromSchema(s)
 	if err := detectCardinality(s); err != nil {
@@ -755,7 +755,8 @@ func mergeAdditionalComments(s *schema.Schema, comments []AdditionalComment) (er
 	return nil
 }
 
-func mergeDetectedRelations(s *schema.Schema, strategy *NamingStrategy) {
+// MergeDetectedRelations detects and merges virtual relations based on naming conventions
+func MergeDetectedRelations(s *schema.Schema, strategy *NamingStrategy) {
 	var (
 		err          error
 		parentColumn *schema.Column

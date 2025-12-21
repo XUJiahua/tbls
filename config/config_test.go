@@ -416,7 +416,7 @@ func testdataDir() string {
 	return dir
 }
 
-func Test_mergeDetectedRelations(t *testing.T) {
+func TestMergeDetectedRelations(t *testing.T) {
 	var (
 		err          error
 		table        *schema.Table
@@ -558,7 +558,7 @@ func Test_mergeDetectedRelations(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mergeDetectedRelations(tt.args.s, strategy)
+			MergeDetectedRelations(tt.args.s, strategy)
 			if !reflect.DeepEqual(tt.args.s.Relations, tt.want.r) {
 				t.Errorf("got: %#v\nwant: %#v", tt.args.s.Relations, tt.want.r)
 			}
