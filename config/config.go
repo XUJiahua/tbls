@@ -34,96 +34,96 @@ var DefaultERDistance = 1
 
 // Config is tbls config.
 type Config struct {
-	Name   string   `yaml:"name"`
-	Desc   string   `yaml:"desc,omitempty"`
-	Labels []string `yaml:"labels,omitempty"`
-	DSN    DSN      `yaml:"dsn"`
+	Name   string   `yaml:"name" json:"name"`
+	Desc   string   `yaml:"desc,omitempty" json:"desc,omitempty"`
+	Labels []string `yaml:"labels,omitempty" json:"labels,omitempty"`
+	DSN    DSN      `yaml:"dsn" json:"dsn"`
 	// Directory of schema document
-	DocPath                string                 `yaml:"docPath"`
-	Format                 Format                 `yaml:"format,omitempty"`
-	ER                     ER                     `yaml:"er,omitempty"`
-	Include                []string               `yaml:"include,omitempty"`
-	Exclude                []string               `yaml:"exclude,omitempty"`
-	Distance               int                    `yaml:"distance,omitempty"`
-	Lint                   Lint                   `yaml:"lint,omitempty"`
-	LintExclude            []string               `yaml:"lintExclude,omitempty"`
-	Viewpoints             []Viewpoint            `yaml:"viewpoints,omitempty"`
-	Relations              []AdditionalRelation   `yaml:"relations,omitempty"`
-	Comments               []AdditionalComment    `yaml:"comments,omitempty"`
-	Dict                   dict.Dict              `yaml:"dict,omitempty"`
-	Templates              Templates              `yaml:"templates,omitempty"`
-	DetectVirtualRelations DetectVirtualRelations `yaml:"detectVirtualRelations,omitempty"`
-	BaseURL                string                 `yaml:"baseUrl,omitempty"`
-	RequiredVersion        string                 `yaml:"requiredVersion,omitempty"`
-	DisableOutputSchema    bool                   `yaml:"disableOutputSchema,omitempty"`
-	MergedDict             dict.Dict              `yaml:"-"`
+	DocPath                string                 `yaml:"docPath" json:"docPath,omitempty"`
+	Format                 Format                 `yaml:"format,omitempty" json:"format,omitempty"`
+	ER                     ER                     `yaml:"er,omitempty" json:"er,omitempty"`
+	Include                []string               `yaml:"include,omitempty" json:"include,omitempty"`
+	Exclude                []string               `yaml:"exclude,omitempty" json:"exclude,omitempty"`
+	Distance               int                    `yaml:"distance,omitempty" json:"distance,omitempty"`
+	Lint                   Lint                   `yaml:"lint,omitempty" json:"lint,omitempty"`
+	LintExclude            []string               `yaml:"lintExclude,omitempty" json:"lintExclude,omitempty"`
+	Viewpoints             []Viewpoint            `yaml:"viewpoints,omitempty" json:"viewpoints,omitempty"`
+	Relations              []AdditionalRelation   `yaml:"relations,omitempty" json:"relations,omitempty"`
+	Comments               []AdditionalComment    `yaml:"comments,omitempty" json:"comments,omitempty"`
+	Dict                   dict.Dict              `yaml:"dict,omitempty" json:"dict,omitempty"`
+	Templates              Templates              `yaml:"templates,omitempty" json:"templates,omitempty"`
+	DetectVirtualRelations DetectVirtualRelations `yaml:"detectVirtualRelations,omitempty" json:"detectVirtualRelations,omitempty"`
+	BaseURL                string                 `yaml:"baseUrl,omitempty" json:"baseUrl,omitempty"`
+	RequiredVersion        string                 `yaml:"requiredVersion,omitempty" json:"requiredVersion,omitempty"`
+	DisableOutputSchema    bool                   `yaml:"disableOutputSchema,omitempty" json:"disableOutputSchema,omitempty"`
+	MergedDict             dict.Dict              `yaml:"-" json:"-"`
 
 	// Table labels to be included
 	includeLabels []string
 
 	// Path of config file
-	Path string `yaml:"-"`
-	root string `yaml:"-"`
+	Path string `yaml:"-" json:"-"`
+	root string `yaml:"-" json:"-"`
 }
 
 type DSN struct {
-	URL     string            `yaml:"url"`
-	Headers map[string]string `yaml:"headers,omitempty"`
+	URL     string            `yaml:"url" json:"url"`
+	Headers map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
 }
 
 // Format is document format setting.
 type Format struct {
-	Adjust                   bool     `yaml:"adjust,omitempty"`
-	Sort                     bool     `yaml:"sort,omitempty"`
-	Number                   bool     `yaml:"number,omitempty"`
-	ShowOnlyFirstParagraph   bool     `yaml:"showOnlyFirstParagraph,omitempty"`
-	HideColumnsWithoutValues []string `yaml:"hideColumnsWithoutValues,omitempty"`
+	Adjust                   bool     `yaml:"adjust,omitempty" json:"adjust,omitempty"`
+	Sort                     bool     `yaml:"sort,omitempty" json:"sort,omitempty"`
+	Number                   bool     `yaml:"number,omitempty" json:"number,omitempty"`
+	ShowOnlyFirstParagraph   bool     `yaml:"showOnlyFirstParagraph,omitempty" json:"showOnlyFirstParagraph,omitempty"`
+	HideColumnsWithoutValues []string `yaml:"hideColumnsWithoutValues,omitempty" json:"hideColumnsWithoutValues,omitempty"`
 }
 
 // ER is er setting.
 type ER struct {
-	Skip            bool             `yaml:"skip,omitempty"`
-	Format          string           `yaml:"format,omitempty"`
-	Comment         bool             `yaml:"comment,omitempty"`
-	HideDef         bool             `yaml:"hideDef,omitempty"`
-	ShowColumnTypes *ShowColumnTypes `yaml:"showColumnTypes,omitempty"`
-	Distance        *int             `yaml:"distance,omitempty"`
-	Font            string           `yaml:"font,omitempty"`
+	Skip            bool             `yaml:"skip,omitempty" json:"skip,omitempty"`
+	Format          string           `yaml:"format,omitempty" json:"format,omitempty"`
+	Comment         bool             `yaml:"comment,omitempty" json:"comment,omitempty"`
+	HideDef         bool             `yaml:"hideDef,omitempty" json:"hideDef,omitempty"`
+	ShowColumnTypes *ShowColumnTypes `yaml:"showColumnTypes,omitempty" json:"showColumnTypes,omitempty"`
+	Distance        *int             `yaml:"distance,omitempty" json:"distance,omitempty"`
+	Font            string           `yaml:"font,omitempty" json:"font,omitempty"`
 }
 
 // ShowColumnTypes is show column setting for ER diagram.
 type ShowColumnTypes struct {
-	Related bool `yaml:"related,omitempty"`
-	Primary bool `yaml:"primary,omitempty"`
+	Related bool `yaml:"related,omitempty" json:"related,omitempty"`
+	Primary bool `yaml:"primary,omitempty" json:"primary,omitempty"`
 }
 
 // AdditionalRelation is the struct for table relation from yaml.
 type AdditionalRelation struct {
-	Table             string   `yaml:"table"`
-	Columns           []string `yaml:"columns"`
-	Cardinality       string   `yaml:"cardinality,omitempty"`
-	ParentTable       string   `yaml:"parentTable"`
-	ParentColumns     []string `yaml:"parentColumns"`
-	ParentCardinality string   `yaml:"parentCardinality,omitempty"`
-	Def               string   `yaml:"def,omitempty"`
-	Override          bool     `yaml:"override,omitempty"`
+	Table             string   `yaml:"table" json:"table"`
+	Columns           []string `yaml:"columns" json:"columns"`
+	Cardinality       string   `yaml:"cardinality,omitempty" json:"cardinality,omitempty"`
+	ParentTable       string   `yaml:"parentTable" json:"parentTable"`
+	ParentColumns     []string `yaml:"parentColumns" json:"parentColumns"`
+	ParentCardinality string   `yaml:"parentCardinality,omitempty" json:"parentCardinality,omitempty"`
+	Def               string   `yaml:"def,omitempty" json:"def,omitempty"`
+	Override          bool     `yaml:"override,omitempty" json:"override,omitempty"`
 }
 
 // AdditionalComment is the struct for table relation from yaml.
 type AdditionalComment struct {
-	Table              string              `yaml:"table"`
-	TableComment       string              `yaml:"tableComment,omitempty"`
-	ColumnComments     map[string]string   `yaml:"columnComments,omitempty"`
-	ColumnLabels       map[string][]string `yaml:"columnLabels,omitempty"`
-	IndexComments      map[string]string   `yaml:"indexComments,omitempty"`
-	ConstraintComments map[string]string   `yaml:"constraintComments,omitempty"`
-	TriggerComments    map[string]string   `yaml:"triggerComments,omitempty"`
-	Labels             []string            `yaml:"labels,omitempty"`
+	Table              string              `yaml:"table" json:"table"`
+	TableComment       string              `yaml:"tableComment,omitempty" json:"tableComment,omitempty"`
+	ColumnComments     map[string]string   `yaml:"columnComments,omitempty" json:"columnComments,omitempty"`
+	ColumnLabels       map[string][]string `yaml:"columnLabels,omitempty" json:"columnLabels,omitempty"`
+	IndexComments      map[string]string   `yaml:"indexComments,omitempty" json:"indexComments,omitempty"`
+	ConstraintComments map[string]string   `yaml:"constraintComments,omitempty" json:"constraintComments,omitempty"`
+	TriggerComments    map[string]string   `yaml:"triggerComments,omitempty" json:"triggerComments,omitempty"`
+	Labels             []string            `yaml:"labels,omitempty" json:"labels,omitempty"`
 }
 
 type DetectVirtualRelations struct {
-	Enabled  bool   `yaml:"enabled,omitempty"`
-	Strategy string `yaml:"strategy,omitempty"`
+	Enabled  bool   `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	Strategy string `yaml:"strategy,omitempty" json:"strategy,omitempty"`
 }
 
 // Option function change Config.
