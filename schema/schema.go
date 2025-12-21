@@ -37,6 +37,31 @@ type Label struct {
 
 type Labels []*Label
 
+// TopValue represents a frequently occurring value in a column
+type TopValue struct {
+	Value string `json:"value"`
+	Count int64  `json:"count"`
+}
+
+// ColumnStats holds column-level statistics
+type ColumnStats struct {
+	RowCount      int64      `json:"row_count"`
+	NullCount     int64      `json:"null_count"`
+	NullPercent   float64    `json:"null_percent"`
+	DistinctCount int64      `json:"distinct_count"`
+	Min           *float64   `json:"min,omitempty"`
+	Max           *float64   `json:"max,omitempty"`
+	Avg           *float64   `json:"avg,omitempty"`
+	TopValues     []TopValue `json:"top_values,omitempty"`
+}
+
+// TableStats holds table-level statistics
+type TableStats struct {
+	RowCount   int64 `json:"row_count"`
+	DataBytes  int64 `json:"data_bytes,omitempty"`
+	IndexBytes int64 `json:"index_bytes,omitempty"`
+}
+
 func (labels Labels) Merge(name string) Labels {
 	if labels.Contains(name) {
 		return labels
@@ -130,6 +155,7 @@ type Column struct {
 	PK              bool
 	FK              bool
 	HideForER       bool
+	Stats           *ColumnStats `json:"stats,omitempty"`
 }
 
 type TableViewpoint struct {
@@ -152,6 +178,7 @@ type Table struct {
 	Labels           Labels
 	ReferencedTables []*Table
 	External         bool
+	Stats            *TableStats `json:"stats,omitempty"`
 }
 
 // Relation is the struct for table relation.
