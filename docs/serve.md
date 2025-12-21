@@ -198,6 +198,35 @@ curl -X POST http://localhost:8080/schema \
   }'
 ```
 
+### With Statistics Collection
+
+```bash
+curl -X POST http://localhost:8080/schema \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dsn": {"url": "clickhouse://localhost:9000/mydb"},
+    "stats": {
+      "enabled": true,
+      "topN": 10,
+      "sampleSize": 10000,
+      "largeTableThreshold": 1000000,
+      "recentDays": 30
+    }
+  }'
+```
+
+#### Stats Configuration
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `stats.enabled` | bool | false | Enable statistics collection |
+| `stats.include` | []string | all | Tables to collect stats for (supports wildcards) |
+| `stats.exclude` | []string | none | Tables to exclude (supports wildcards) |
+| `stats.topN` | int | 10 | Number of top values to collect per column |
+| `stats.sampleSize` | int | 10000 | Maximum rows to sample |
+| `stats.largeTableThreshold` | int | 1000000 | Row count threshold for large table sampling |
+| `stats.recentDays` | int | 30 | Days to look back for large table sampling |
+
 ## Supported Databases
 
 The `/schema` endpoint supports all databases that tbls supports:
