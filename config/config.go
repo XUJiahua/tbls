@@ -56,6 +56,7 @@ type Config struct {
 	BaseURL                string                 `yaml:"baseUrl,omitempty" json:"baseUrl,omitempty"`
 	RequiredVersion        string                 `yaml:"requiredVersion,omitempty" json:"requiredVersion,omitempty"`
 	DisableOutputSchema    bool                   `yaml:"disableOutputSchema,omitempty" json:"disableOutputSchema,omitempty"`
+	Stats                  StatsConfig            `yaml:"stats,omitempty" json:"stats,omitempty"`
 	MergedDict             dict.Dict              `yaml:"-" json:"-"`
 
 	// Table labels to be included
@@ -124,6 +125,17 @@ type AdditionalComment struct {
 type DetectVirtualRelations struct {
 	Enabled  bool   `yaml:"enabled,omitempty" json:"enabled,omitempty"`
 	Strategy string `yaml:"strategy,omitempty" json:"strategy,omitempty"`
+}
+
+// StatsConfig holds configuration for statistics collection
+type StatsConfig struct {
+	Enabled             bool     `yaml:"enabled" json:"enabled"`
+	Include             []string `yaml:"include,omitempty" json:"include,omitempty"`
+	Exclude             []string `yaml:"exclude,omitempty" json:"exclude,omitempty"`
+	TopN                int      `yaml:"topN,omitempty" json:"topN,omitempty"`
+	SampleSize          int      `yaml:"sampleSize,omitempty" json:"sampleSize,omitempty"`
+	LargeTableThreshold int64    `yaml:"largeTableThreshold,omitempty" json:"largeTableThreshold,omitempty"`
+	RecentDays          int      `yaml:"recentDays,omitempty" json:"recentDays,omitempty"`
 }
 
 // Option function change Config.
@@ -288,6 +300,20 @@ func (c *Config) setDefault() error {
 
 	if c.ER.Distance == nil {
 		c.ER.Distance = &DefaultERDistance
+	}
+
+	// Stats defaults
+	if c.Stats.TopN == 0 {
+		c.Stats.TopN = 10
+	}
+	if c.Stats.SampleSize == 0 {
+		c.Stats.SampleSize = 10000
+	}
+	if c.Stats.LargeTableThreshold == 0 {
+		c.Stats.LargeTableThreshold = 1000000
+	}
+	if c.Stats.RecentDays == 0 {
+		c.Stats.RecentDays = 30
 	}
 
 	return nil
@@ -557,6 +583,23 @@ func (c *Config) FilterTables(s *schema.Schema) error {
 		IncludeLabels: c.includeLabels,
 		Distance:      c.Distance,
 	})
+}
+
+// ShouldCollectStats returns true if stats should be collected for the given table
+func (c *Config) ShouldCollectStats(tableName string) bool {
+	if !c.Stats.Enabled {
+		return false
+	}
+	// Check exclude first
+	if len(c.Stats.Exclude) > 0 && match(c.Stats.Exclude, tableName) {
+		return false
+	}
+	// If include is specified, table must match
+	if len(c.Stats.Include) > 0 {
+		return match(c.Stats.Include, tableName)
+	}
+	// Default: collect for all tables
+	return true
 }
 
 func (c *Config) mergeDictFromSchema(s *schema.Schema) {
