@@ -12,6 +12,11 @@ import (
 // numericTypeRe matches ClickHouse numeric types
 var numericTypeRe = regexp.MustCompile(`(?i)^(U?Int\d+|Float\d+|Decimal.*|Nullable\((U?Int\d+|Float\d+|Decimal.*)\))`)
 
+// backquote escapes ClickHouse identifiers
+func backquote(identifier string) string {
+	return "`" + strings.ReplaceAll(identifier, "`", "``") + "`"
+}
+
 // CollectStats collects statistics for all tables in the schema
 func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) error {
 	// Get table stats from system.tables
@@ -153,12 +158,16 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 	if isLargeTable {
 		dateCol := extractDateColumn(partitionKey)
 		if dateCol != "" {
-			whereClause = fmt.Sprintf("WHERE %s >= today() - %d", dateCol, cfg.RecentDays)
+			whereClause = fmt.Sprintf("WHERE %s >= today() - %d", backquote(dateCol), cfg.RecentDays)
 		}
 	}
 
 	// Build query based on column type
 	var query string
+	quotedCol := backquote(colName)
+	quotedDB := backquote(dbName)
+	quotedTable := backquote(tableName)
+
 	if isNumeric {
 		query = fmt.Sprintf(`
 			SELECT
@@ -168,10 +177,13 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 				min(%s) as min_val,
 				max(%s) as max_val,
 				avg(%s) as avg_val
-			FROM %s.%s
-			%s
-			LIMIT %d
-		`, colName, colName, colName, colName, colName, dbName, tableName, whereClause, cfg.SampleSize)
+			FROM (
+				SELECT %s
+				FROM %s.%s
+				%s
+				LIMIT %d
+			)
+		`, quotedCol, quotedCol, quotedCol, quotedCol, quotedCol, quotedCol, quotedDB, quotedTable, whereClause, cfg.SampleSize)
 	} else {
 		query = fmt.Sprintf(`
 			SELECT
@@ -181,10 +193,13 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 				0 as min_val,
 				0 as max_val,
 				0 as avg_val
-			FROM %s.%s
-			%s
-			LIMIT %d
-		`, colName, colName, dbName, tableName, whereClause, cfg.SampleSize)
+			FROM (
+				SELECT %s
+				FROM %s.%s
+				%s
+				LIMIT %d
+			)
+		`, quotedCol, quotedCol, quotedCol, quotedDB, quotedTable, whereClause, cfg.SampleSize)
 	}
 
 	row := ch.db.QueryRow(query)
@@ -223,6 +238,10 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 }
 
 func (ch *ClickHouse) getTopValues(dbName, tableName, colName, whereClause string, topN int) ([]schema.TopValue, error) {
+	quotedCol := backquote(colName)
+	quotedDB := backquote(dbName)
+	quotedTable := backquote(tableName)
+
 	query := fmt.Sprintf(`
 		SELECT
 			toString(%s) as value,
@@ -232,7 +251,7 @@ func (ch *ClickHouse) getTopValues(dbName, tableName, colName, whereClause strin
 		GROUP BY %s
 		ORDER BY cnt DESC
 		LIMIT %d
-	`, colName, dbName, tableName, whereClause, colName, topN)
+	`, quotedCol, quotedDB, quotedTable, whereClause, quotedCol, topN)
 
 	rows, err := ch.db.Query(query)
 	if err != nil {
