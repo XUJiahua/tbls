@@ -162,6 +162,57 @@ func Analyze(dsn config.DSN) (_ *schema.Schema, err error) {
 	return s, nil
 }
 
+// AnalyzeWithStats analyzes database and optionally collects statistics
+func AnalyzeWithStats(dsn config.DSN, cfg *config.Config) (*schema.Schema, error) {
+	s, err := Analyze(dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	// Collect stats if enabled
+	if cfg != nil && cfg.Stats.Enabled {
+		if err := collectStats(s, dsn, cfg); err != nil {
+			// Log error but don't fail - stats are optional
+			// TODO: consider adding proper logging
+			_ = err
+		}
+	}
+
+	return s, nil
+}
+
+func collectStats(s *schema.Schema, dsn config.DSN, cfg *config.Config) error {
+	urlstr := dsn.URL
+	u, err := dburl.Parse(urlstr)
+	if err != nil {
+		return err
+	}
+
+	statsCfg := drivers.StatsConfig{
+		Include:             cfg.Stats.Include,
+		Exclude:             cfg.Stats.Exclude,
+		TopN:                cfg.Stats.TopN,
+		SampleSize:          cfg.Stats.SampleSize,
+		LargeTableThreshold: cfg.Stats.LargeTableThreshold,
+		RecentDays:          cfg.Stats.RecentDays,
+	}
+
+	switch u.Driver {
+	case "clickhouse":
+		db, err := dburl.Open(urlstr)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+
+		driver := clickhouse.New(db)
+		return driver.CollectStats(s, statsCfg)
+	default:
+		// Stats not supported for this driver
+		return nil
+	}
+}
+
 // AnalyzeHTTPResource analyze `https://` or `http://`
 func AnalyzeHTTPResource(dsn config.DSN) (_ *schema.Schema, err error) {
 	defer func() {
