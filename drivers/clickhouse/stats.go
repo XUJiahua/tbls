@@ -2,12 +2,28 @@ package clickhouse
 
 import (
 	"fmt"
+	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/k1LoW/tbls/drivers"
 	"github.com/k1LoW/tbls/schema"
 )
+
+// isDebug checks if debug mode is enabled via TBLS_DEBUG environment variable
+func isDebug() bool {
+	env := os.Getenv("TBLS_DEBUG")
+	debug, _ := strconv.ParseBool(env)
+	return env != "" && debug
+}
+
+// logSQL prints SQL query if debug mode is enabled
+func logSQL(query string) {
+	if isDebug() {
+		fmt.Printf("[SQL] %s\n", strings.TrimSpace(query))
+	}
+}
 
 // numericTypeRe matches ClickHouse numeric types
 var numericTypeRe = regexp.MustCompile(`(?i)^(U?Int\d+|Float\d+|Decimal.*|Nullable\((U?Int\d+|Float\d+|Decimal.*)\))`)
@@ -89,15 +105,17 @@ func matchPattern(pattern, name string) bool {
 func (ch *ClickHouse) getTableStats(dbName string) (map[string]*schema.TableStats, error) {
 	result := make(map[string]*schema.TableStats)
 
-	rows, err := ch.db.Query(`
+	query := `
 		SELECT
 			name,
-			total_rows,
-			total_bytes,
+			coalesce(total_rows, 0) as total_rows,
+			coalesce(total_bytes, 0) as total_bytes,
 			0 as index_bytes
 		FROM system.tables
 		WHERE database = ?
-	`, dbName)
+	`
+	logSQL(fmt.Sprintf("%s -- args: [%s]", query, dbName))
+	rows, err := ch.db.Query(query, dbName)
 	if err != nil {
 		return nil, err
 	}
@@ -125,11 +143,13 @@ func (ch *ClickHouse) getTableStats(dbName string) (map[string]*schema.TableStat
 
 func (ch *ClickHouse) getPartitionKey(dbName, tableName string) string {
 	var partitionKey string
-	row := ch.db.QueryRow(`
+	query := `
 		SELECT partition_key
 		FROM system.tables
 		WHERE database = ? AND name = ?
-	`, dbName, tableName)
+	`
+	logSQL(fmt.Sprintf("%s -- args: [%s, %s]", query, dbName, tableName))
+	row := ch.db.QueryRow(query, dbName, tableName)
 	_ = row.Scan(&partitionKey)
 	return partitionKey
 }
@@ -202,6 +222,7 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 		`, quotedCol, quotedCol, quotedCol, quotedDB, quotedTable, whereClause, cfg.SampleSize)
 	}
 
+	logSQL(query)
 	row := ch.db.QueryRow(query)
 	var (
 		rowCount      int64
@@ -253,6 +274,7 @@ func (ch *ClickHouse) getTopValues(dbName, tableName, colName, whereClause strin
 		LIMIT %d
 	`, quotedCol, quotedDB, quotedTable, whereClause, quotedCol, topN)
 
+	logSQL(query)
 	rows, err := ch.db.Query(query)
 	if err != nil {
 		return nil, err
