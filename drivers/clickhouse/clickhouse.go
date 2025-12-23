@@ -13,6 +13,17 @@ import (
 	"github.com/samber/lo"
 )
 
+// OpenHTTP opens a ClickHouse connection using HTTP protocol
+// httpURL format: http://user:password@host:port/database or https://...
+func OpenHTTP(httpURL string) (*sql.DB, error) {
+	// clickhouse-go v2 supports HTTP protocol with http:// or https:// prefix
+	db, err := sql.Open("clickhouse", httpURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open ClickHouse HTTP connection: %w", err)
+	}
+	return db, nil
+}
+
 var shadowTableRe = regexp.MustCompile(`^\.inner_id\.`)
 
 // ClickHouse struct.

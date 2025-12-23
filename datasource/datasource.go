@@ -71,6 +71,10 @@ func Analyze(dsn config.DSN) (_ *schema.Schema, err error) {
 	if strings.HasPrefix(urlstr, "databricks://") {
 		return AnalyzeDatabricks(urlstr)
 	}
+	// ClickHouse HTTP protocol support: clickhouse+http:// or clickhouse+https://
+	if strings.HasPrefix(urlstr, "clickhouse+http://") || strings.HasPrefix(urlstr, "clickhouse+https://") {
+		return AnalyzeClickHouseHTTP(urlstr)
+	}
 	s := &schema.Schema{}
 	u, err := dburl.Parse(urlstr)
 	if err != nil || !slices.Contains(supportDriversWithDburl, u.Driver) {
@@ -183,10 +187,6 @@ func AnalyzeWithStats(dsn config.DSN, cfg *config.Config) (*schema.Schema, error
 
 func collectStats(s *schema.Schema, dsn config.DSN, cfg *config.Config) error {
 	urlstr := dsn.URL
-	u, err := dburl.Parse(urlstr)
-	if err != nil {
-		return err
-	}
 
 	statsCfg := drivers.StatsConfig{
 		Include:             cfg.Stats.Include,
@@ -195,6 +195,25 @@ func collectStats(s *schema.Schema, dsn config.DSN, cfg *config.Config) error {
 		SampleSize:          cfg.Stats.SampleSize,
 		LargeTableThreshold: cfg.Stats.LargeTableThreshold,
 		RecentDays:          cfg.Stats.RecentDays,
+	}
+
+	// Handle ClickHouse HTTP protocol
+	if strings.HasPrefix(urlstr, "clickhouse+http://") || strings.HasPrefix(urlstr, "clickhouse+https://") {
+		httpURL := strings.TrimPrefix(urlstr, "clickhouse+")
+		db, err := clickhouse.OpenHTTP(httpURL)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+
+		driver := clickhouse.New(db)
+		return driver.CollectStats(s, statsCfg)
+	}
+
+	// Handle other drivers via dburl
+	u, err := dburl.Parse(urlstr)
+	if err != nil {
+		return err
 	}
 
 	switch u.Driver {
@@ -211,6 +230,56 @@ func collectStats(s *schema.Schema, dsn config.DSN, cfg *config.Config) error {
 		// Stats not supported for this driver
 		return nil
 	}
+}
+
+// AnalyzeClickHouseHTTP analyzes ClickHouse database using HTTP protocol
+// DSN format: clickhouse+http://user:password@host:port/database
+// or clickhouse+https://user:password@host:port/database
+func AnalyzeClickHouseHTTP(urlstr string) (_ *schema.Schema, err error) {
+	defer func() {
+		err = errors.WithStack(err)
+	}()
+
+	// Convert clickhouse+http:// to http:// for clickhouse-go driver
+	var httpURL string
+	if strings.HasPrefix(urlstr, "clickhouse+https://") {
+		httpURL = strings.TrimPrefix(urlstr, "clickhouse+")
+	} else {
+		httpURL = strings.TrimPrefix(urlstr, "clickhouse+")
+	}
+
+	// Parse URL to extract database name
+	u, err := url.Parse(httpURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid ClickHouse HTTP DSN: %w", err)
+	}
+
+	dbName := strings.TrimPrefix(u.Path, "/")
+	if dbName == "" {
+		return nil, fmt.Errorf("database name is required in DSN: %s", urlstr)
+	}
+
+	s := &schema.Schema{
+		Name: dbName,
+	}
+
+	// Open connection using clickhouse-go with HTTP protocol
+	db, err := clickhouse.OpenHTTP(httpURL)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to connect to ClickHouse via HTTP: %w", err)
+	}
+
+	driver := clickhouse.New(db)
+	if err := driver.Analyze(s); err != nil {
+		return nil, err
+	}
+
+	return s, nil
 }
 
 // AnalyzeHTTPResource analyze `https://` or `http://`
