@@ -1,0 +1,15 @@
+# ClickHouse 数据库元数据配置
+dsn: clickhouse+http://default:default@192.168.1.18:8123/default
+
+# 输出目录
+docPath: clickhouse-doc
+
+# ER 图设置
+er:
+  skip: true
+
+# 统计信息收集（枚举值等）
+stats:
+  enabled: true
+  topN: 20           # 收集前 20 个枚举值
+  sampleSize: 10000  # 采样大小

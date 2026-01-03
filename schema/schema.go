@@ -52,6 +52,11 @@ type ColumnStats struct {
 	Min           *float64   `json:"min,omitempty"`
 	Max           *float64   `json:"max,omitempty"`
 	Avg           *float64   `json:"avg,omitempty"`
+	MinDate       *string    `json:"min_date,omitempty"`
+	MaxDate       *string    `json:"max_date,omitempty"`
+	MinLength     *int64     `json:"min_length,omitempty"`
+	MaxLength     *int64     `json:"max_length,omitempty"`
+	AvgLength     *float64   `json:"avg_length,omitempty"`
 	TopValues     []TopValue `json:"top_values,omitempty"`
 }
 

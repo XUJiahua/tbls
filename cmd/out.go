@@ -74,7 +74,7 @@ var outCmd = &cobra.Command{
 			return err
 		}
 
-		s, err := getSchemaFromJSONorDSN(c)
+		s, err := getSchemaFromJSONorDSNWithStats(c)
 		if err != nil {
 			return err
 		}

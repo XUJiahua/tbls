@@ -1,0 +1,1175 @@
+{
+  "name": "default",
+  "tables": [
+    {
+      "name": "customers",
+      "type": "MergeTree",
+      "columns": [
+        {
+          "name": "customer_id",
+          "type": "UInt32",
+          "nullable": false,
+          "stats": {
+            "row_count": 10,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 10,
+            "min": 1,
+            "max": 10,
+            "avg": 5.5,
+            "top_values": [
+              {
+                "value": "4",
+                "count": 1
+              },
+              {
+                "value": "3",
+                "count": 1
+              },
+              {
+                "value": "2",
+                "count": 1
+              },
+              {
+                "value": "5",
+                "count": 1
+              },
+              {
+                "value": "1",
+                "count": 1
+              },
+              {
+                "value": "6",
+                "count": 1
+              },
+              {
+                "value": "7",
+                "count": 1
+              },
+              {
+                "value": "9",
+                "count": 1
+              },
+              {
+                "value": "8",
+                "count": 1
+              },
+              {
+                "value": "10",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "name": "customer_name",
+          "type": "String",
+          "nullable": false,
+          "stats": {
+            "row_count": 10,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 10,
+            "min_length": 9,
+            "max_length": 13,
+            "avg_length": 11.2,
+            "top_values": [
+              {
+                "value": "Hannah Kim",
+                "count": 1
+              },
+              {
+                "value": "Alice Johnson",
+                "count": 1
+              },
+              {
+                "value": "Diana Ross",
+                "count": 1
+              },
+              {
+                "value": "Charlie Brown",
+                "count": 1
+              },
+              {
+                "value": "Fiona Wang",
+                "count": 1
+              },
+              {
+                "value": "George Miller",
+                "count": 1
+              },
+              {
+                "value": "Bob Smith",
+                "count": 1
+              },
+              {
+                "value": "Edward Chen",
+                "count": 1
+              },
+              {
+                "value": "Julia Santos",
+                "count": 1
+              },
+              {
+                "value": "Ivan Petrov",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "name": "email",
+          "type": "String",
+          "nullable": false,
+          "stats": {
+            "row_count": 10,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 10,
+            "min_length": 15,
+            "max_length": 19,
+            "avg_length": 17.2,
+            "top_values": [
+              {
+                "value": "ivan@example.com",
+                "count": 1
+              },
+              {
+                "value": "bob@example.com",
+                "count": 1
+              },
+              {
+                "value": "charlie@example.com",
+                "count": 1
+              },
+              {
+                "value": "diana@example.com",
+                "count": 1
+              },
+              {
+                "value": "julia@example.com",
+                "count": 1
+              },
+              {
+                "value": "george@example.com",
+                "count": 1
+              },
+              {
+                "value": "alice@example.com",
+                "count": 1
+              },
+              {
+                "value": "edward@example.com",
+                "count": 1
+              },
+              {
+                "value": "fiona@example.com",
+                "count": 1
+              },
+              {
+                "value": "hannah@example.com",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "name": "city",
+          "type": "String",
+          "nullable": false,
+          "stats": {
+            "row_count": 10,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 10,
+            "min_length": 5,
+            "max_length": 11,
+            "avg_length": 7.4,
+            "top_values": [
+              {
+                "value": "New York",
+                "count": 1
+              },
+              {
+                "value": "Sydney",
+                "count": 1
+              },
+              {
+                "value": "Moscow",
+                "count": 1
+              },
+              {
+                "value": "London",
+                "count": 1
+              },
+              {
+                "value": "Chicago",
+                "count": 1
+              },
+              {
+                "value": "Shanghai",
+                "count": 1
+              },
+              {
+                "value": "Seoul",
+                "count": 1
+              },
+              {
+                "value": "Beijing",
+                "count": 1
+              },
+              {
+                "value": "São Paulo",
+                "count": 1
+              },
+              {
+                "value": "Los Angeles",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "name": "country",
+          "type": "String",
+          "nullable": false,
+          "stats": {
+            "row_count": 10,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 7,
+            "min_length": 2,
+            "max_length": 11,
+            "avg_length": 5.3,
+            "top_values": [
+              {
+                "value": "USA",
+                "count": 3
+              },
+              {
+                "value": "China",
+                "count": 2
+              },
+              {
+                "value": "Russia",
+                "count": 1
+              },
+              {
+                "value": "Brazil",
+                "count": 1
+              },
+              {
+                "value": "UK",
+                "count": 1
+              },
+              {
+                "value": "South Korea",
+                "count": 1
+              },
+              {
+                "value": "Australia",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "name": "registration_date",
+          "type": "Date",
+          "nullable": false,
+          "stats": {
+            "row_count": 10,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 10,
+            "min_date": "2023-01-15",
+            "max_date": "2023-10-25",
+            "top_values": [
+              {
+                "value": "2023-01-15",
+                "count": 1
+              },
+              {
+                "value": "2023-02-20",
+                "count": 1
+              },
+              {
+                "value": "2023-03-10",
+                "count": 1
+              },
+              {
+                "value": "2023-04-05",
+                "count": 1
+              },
+              {
+                "value": "2023-05-18",
+                "count": 1
+              },
+              {
+                "value": "2023-06-22",
+                "count": 1
+              },
+              {
+                "value": "2023-07-30",
+                "count": 1
+              },
+              {
+                "value": "2023-08-14",
+                "count": 1
+              },
+              {
+                "value": "2023-09-01",
+                "count": 1
+              },
+              {
+                "value": "2023-10-25",
+                "count": 1
+              }
+            ]
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "name": "sorting key",
+          "type": "SORTING KEY",
+          "def": "ORDER BY (customer_id)",
+          "table": "customers",
+          "columns": [
+            "customer_id"
+          ]
+        },
+        {
+          "name": "primary key",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (customer_id)",
+          "table": "customers",
+          "columns": [
+            "customer_id"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE default.customers (`customer_id` UInt32, `customer_name` String, `email` String, `city` String, `country` String, `registration_date` Date) ENGINE = MergeTree ORDER BY customer_id SETTINGS index_granularity = 8192",
+      "stats": {
+        "row_count": 10,
+        "data_bytes": 1145
+      }
+    },
+    {
+      "name": "orders",
+      "type": "MergeTree",
+      "columns": [
+        {
+          "name": "order_id",
+          "type": "UInt32",
+          "nullable": false,
+          "stats": {
+            "row_count": 20,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 20,
+            "min": 1,
+            "max": 20,
+            "avg": 10.5,
+            "top_values": [
+              {
+                "value": "4",
+                "count": 1
+              },
+              {
+                "value": "3",
+                "count": 1
+              },
+              {
+                "value": "2",
+                "count": 1
+              },
+              {
+                "value": "5",
+                "count": 1
+              },
+              {
+                "value": "1",
+                "count": 1
+              },
+              {
+                "value": "6",
+                "count": 1
+              },
+              {
+                "value": "7",
+                "count": 1
+              },
+              {
+                "value": "9",
+                "count": 1
+              },
+              {
+                "value": "14",
+                "count": 1
+              },
+              {
+                "value": "18",
+                "count": 1
+              },
+              {
+                "value": "19",
+                "count": 1
+              },
+              {
+                "value": "15",
+                "count": 1
+              },
+              {
+                "value": "20",
+                "count": 1
+              },
+              {
+                "value": "8",
+                "count": 1
+              },
+              {
+                "value": "16",
+                "count": 1
+              },
+              {
+                "value": "12",
+                "count": 1
+              },
+              {
+                "value": "11",
+                "count": 1
+              },
+              {
+                "value": "10",
+                "count": 1
+              },
+              {
+                "value": "13",
+                "count": 1
+              },
+              {
+                "value": "17",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "name": "customer_id",
+          "type": "UInt32",
+          "nullable": false,
+          "stats": {
+            "row_count": 20,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 10,
+            "min": 1,
+            "max": 10,
+            "avg": 5.05,
+            "top_values": [
+              {
+                "value": "1",
+                "count": 3
+              },
+              {
+                "value": "4",
+                "count": 2
+              },
+              {
+                "value": "3",
+                "count": 2
+              },
+              {
+                "value": "2",
+                "count": 2
+              },
+              {
+                "value": "5",
+                "count": 2
+              },
+              {
+                "value": "6",
+                "count": 2
+              },
+              {
+                "value": "7",
+                "count": 2
+              },
+              {
+                "value": "9",
+                "count": 2
+              },
+              {
+                "value": "8",
+                "count": 2
+              },
+              {
+                "value": "10",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "name": "product_id",
+          "type": "UInt32",
+          "nullable": false,
+          "stats": {
+            "row_count": 20,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 10,
+            "min": 1,
+            "max": 10,
+            "avg": 5.05,
+            "top_values": [
+              {
+                "value": "1",
+                "count": 3
+              },
+              {
+                "value": "4",
+                "count": 2
+              },
+              {
+                "value": "3",
+                "count": 2
+              },
+              {
+                "value": "2",
+                "count": 2
+              },
+              {
+                "value": "5",
+                "count": 2
+              },
+              {
+                "value": "6",
+                "count": 2
+              },
+              {
+                "value": "7",
+                "count": 2
+              },
+              {
+                "value": "9",
+                "count": 2
+              },
+              {
+                "value": "8",
+                "count": 2
+              },
+              {
+                "value": "10",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "name": "order_date",
+          "type": "DateTime",
+          "nullable": false,
+          "stats": {
+            "row_count": 20,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 19,
+            "min_date": "2024-01-05 10:30:00",
+            "max_date": "2024-04-20 14:30:00",
+            "top_values": [
+              {
+                "value": "2024-01-05 10:30:00",
+                "count": 2
+              },
+              {
+                "value": "2024-04-05 15:30:00",
+                "count": 1
+              },
+              {
+                "value": "2024-02-15 10:00:00",
+                "count": 1
+              },
+              {
+                "value": "2024-01-20 16:45:00",
+                "count": 1
+              },
+              {
+                "value": "2024-01-10 14:15:00",
+                "count": 1
+              },
+              {
+                "value": "2024-03-01 09:30:00",
+                "count": 1
+              },
+              {
+                "value": "2024-02-10 15:00:00",
+                "count": 1
+              },
+              {
+                "value": "2024-04-15 11:00:00",
+                "count": 1
+              },
+              {
+                "value": "2024-02-05 13:30:00",
+                "count": 1
+              },
+              {
+                "value": "2024-03-15 16:30:00",
+                "count": 1
+              },
+              {
+                "value": "2024-01-15 09:00:00",
+                "count": 1
+              },
+              {
+                "value": "2024-03-20 10:15:00",
+                "count": 1
+              },
+              {
+                "value": "2024-02-20 12:00:00",
+                "count": 1
+              },
+              {
+                "value": "2024-03-05 14:00:00",
+                "count": 1
+              },
+              {
+                "value": "2024-04-10 09:00:00",
+                "count": 1
+              },
+              {
+                "value": "2024-04-20 14:30:00",
+                "count": 1
+              },
+              {
+                "value": "2024-04-01 13:00:00",
+                "count": 1
+              },
+              {
+                "value": "2024-03-10 11:45:00",
+                "count": 1
+              },
+              {
+                "value": "2024-02-01 11:20:00",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "name": "quantity",
+          "type": "UInt32",
+          "nullable": false,
+          "stats": {
+            "row_count": 20,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 3,
+            "min": 1,
+            "max": 3,
+            "avg": 1.5,
+            "top_values": [
+              {
+                "value": "1",
+                "count": 12
+              },
+              {
+                "value": "2",
+                "count": 6
+              },
+              {
+                "value": "3",
+                "count": 2
+              }
+            ]
+          }
+        },
+        {
+          "name": "unit_price",
+          "type": "Decimal(10, 2)",
+          "nullable": false,
+          "stats": {
+            "row_count": 20,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 10,
+            "min": 79,
+            "max": 2499,
+            "avg": 677,
+            "top_values": [
+              {
+                "value": "999",
+                "count": 3
+              },
+              {
+                "value": "189",
+                "count": 2
+              },
+              {
+                "value": "299",
+                "count": 2
+              },
+              {
+                "value": "249",
+                "count": 2
+              },
+              {
+                "value": "349",
+                "count": 2
+              },
+              {
+                "value": "1999",
+                "count": 2
+              },
+              {
+                "value": "159",
+                "count": 2
+              },
+              {
+                "value": "79",
+                "count": 2
+              },
+              {
+                "value": "699",
+                "count": 2
+              },
+              {
+                "value": "2499",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "name": "total_amount",
+          "type": "Decimal(10, 2)",
+          "nullable": false,
+          "stats": {
+            "row_count": 20,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 16,
+            "min": 158,
+            "max": 2499,
+            "avg": 808.5,
+            "top_values": [
+              {
+                "value": "349",
+                "count": 2
+              },
+              {
+                "value": "999",
+                "count": 2
+              },
+              {
+                "value": "1999",
+                "count": 2
+              },
+              {
+                "value": "699",
+                "count": 2
+              },
+              {
+                "value": "189",
+                "count": 1
+              },
+              {
+                "value": "299",
+                "count": 1
+              },
+              {
+                "value": "378",
+                "count": 1
+              },
+              {
+                "value": "318",
+                "count": 1
+              },
+              {
+                "value": "747",
+                "count": 1
+              },
+              {
+                "value": "159",
+                "count": 1
+              },
+              {
+                "value": "237",
+                "count": 1
+              },
+              {
+                "value": "2499",
+                "count": 1
+              },
+              {
+                "value": "158",
+                "count": 1
+              },
+              {
+                "value": "498",
+                "count": 1
+              },
+              {
+                "value": "598",
+                "count": 1
+              },
+              {
+                "value": "1998",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "name": "status",
+          "type": "String",
+          "nullable": false,
+          "stats": {
+            "row_count": 20,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 3,
+            "min_length": 7,
+            "max_length": 9,
+            "avg_length": 8.5,
+            "top_values": [
+              {
+                "value": "completed",
+                "count": 15
+              },
+              {
+                "value": "shipped",
+                "count": 3
+              },
+              {
+                "value": "pending",
+                "count": 2
+              }
+            ]
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "name": "sorting key",
+          "type": "SORTING KEY",
+          "def": "ORDER BY (order_date, order_id)",
+          "table": "orders",
+          "columns": [
+            "order_id",
+            "order_date"
+          ]
+        },
+        {
+          "name": "primary key",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (order_date, order_id)",
+          "table": "orders",
+          "columns": [
+            "order_id",
+            "order_date"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE default.orders (`order_id` UInt32, `customer_id` UInt32, `product_id` UInt32, `order_date` DateTime, `quantity` UInt32, `unit_price` Decimal(10, 2), `total_amount` Decimal(10, 2), `status` String) ENGINE = MergeTree ORDER BY (order_date, order_id) SETTINGS index_granularity = 8192",
+      "stats": {
+        "row_count": 20,
+        "data_bytes": 1497
+      }
+    },
+    {
+      "name": "products",
+      "type": "MergeTree",
+      "columns": [
+        {
+          "name": "product_id",
+          "type": "UInt32",
+          "nullable": false,
+          "stats": {
+            "row_count": 10,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 10,
+            "min": 1,
+            "max": 10,
+            "avg": 5.5,
+            "top_values": [
+              {
+                "value": "4",
+                "count": 1
+              },
+              {
+                "value": "3",
+                "count": 1
+              },
+              {
+                "value": "2",
+                "count": 1
+              },
+              {
+                "value": "5",
+                "count": 1
+              },
+              {
+                "value": "1",
+                "count": 1
+              },
+              {
+                "value": "6",
+                "count": 1
+              },
+              {
+                "value": "7",
+                "count": 1
+              },
+              {
+                "value": "9",
+                "count": 1
+              },
+              {
+                "value": "8",
+                "count": 1
+              },
+              {
+                "value": "10",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "name": "product_name",
+          "type": "String",
+          "nullable": false,
+          "stats": {
+            "row_count": 10,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 10,
+            "min_length": 11,
+            "max_length": 17,
+            "avg_length": 14.3,
+            "top_values": [
+              {
+                "value": "Sony WH-1000XM5",
+                "count": 1
+              },
+              {
+                "value": "iPhone 15 Pro",
+                "count": 1
+              },
+              {
+                "value": "Levi's 501 Jeans",
+                "count": 1
+              },
+              {
+                "value": "AirPods Pro",
+                "count": 1
+              },
+              {
+                "value": "Canon EOS R6",
+                "count": 1
+              },
+              {
+                "value": "MacBook Pro 14",
+                "count": 1
+              },
+              {
+                "value": "Samsung 4K TV 55",
+                "count": 1
+              },
+              {
+                "value": "Nike Air Max",
+                "count": 1
+              },
+              {
+                "value": "North Face Jacket",
+                "count": 1
+              },
+              {
+                "value": "Adidas Ultraboost",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "name": "category",
+          "type": "String",
+          "nullable": false,
+          "stats": {
+            "row_count": 10,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 3,
+            "min_length": 5,
+            "max_length": 11,
+            "avg_length": 9.2,
+            "top_values": [
+              {
+                "value": "Electronics",
+                "count": 6
+              },
+              {
+                "value": "Shoes",
+                "count": 2
+              },
+              {
+                "value": "Clothing",
+                "count": 2
+              }
+            ]
+          }
+        },
+        {
+          "name": "price",
+          "type": "Decimal(10, 2)",
+          "nullable": false,
+          "stats": {
+            "row_count": 10,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 10,
+            "min": 79,
+            "max": 2499,
+            "avg": 752,
+            "top_values": [
+              {
+                "value": "189",
+                "count": 1
+              },
+              {
+                "value": "299",
+                "count": 1
+              },
+              {
+                "value": "249",
+                "count": 1
+              },
+              {
+                "value": "349",
+                "count": 1
+              },
+              {
+                "value": "999",
+                "count": 1
+              },
+              {
+                "value": "1999",
+                "count": 1
+              },
+              {
+                "value": "159",
+                "count": 1
+              },
+              {
+                "value": "79",
+                "count": 1
+              },
+              {
+                "value": "2499",
+                "count": 1
+              },
+              {
+                "value": "699",
+                "count": 1
+              }
+            ]
+          }
+        },
+        {
+          "name": "stock_quantity",
+          "type": "UInt32",
+          "nullable": false,
+          "stats": {
+            "row_count": 10,
+            "null_count": 0,
+            "null_percent": 0,
+            "distinct_count": 10,
+            "min": 40,
+            "max": 500,
+            "avg": 173,
+            "top_values": [
+              {
+                "value": "40",
+                "count": 1
+              },
+              {
+                "value": "180",
+                "count": 1
+              },
+              {
+                "value": "150",
+                "count": 1
+              },
+              {
+                "value": "300",
+                "count": 1
+              },
+              {
+                "value": "500",
+                "count": 1
+              },
+              {
+                "value": "120",
+                "count": 1
+              },
+              {
+                "value": "100",
+                "count": 1
+              },
+              {
+                "value": "60",
+                "count": 1
+              },
+              {
+                "value": "80",
+                "count": 1
+              },
+              {
+                "value": "200",
+                "count": 1
+              }
+            ]
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "name": "sorting key",
+          "type": "SORTING KEY",
+          "def": "ORDER BY (product_id)",
+          "table": "products",
+          "columns": [
+            "product_id"
+          ]
+        },
+        {
+          "name": "primary key",
+          "type": "PRIMARY KEY",
+          "def": "PRIMARY KEY (product_id)",
+          "table": "products",
+          "columns": [
+            "product_id"
+          ]
+        }
+      ],
+      "def": "CREATE TABLE default.products (`product_id` UInt32, `product_name` String, `category` String, `price` Decimal(10, 2), `stock_quantity` UInt32) ENGINE = MergeTree ORDER BY product_id SETTINGS index_granularity = 8192",
+      "stats": {
+        "row_count": 10,
+        "data_bytes": 954
+      }
+    }
+  ],
+  "driver": {
+    "name": "clickhouse",
+    "database_version": "23.8.16.16",
+    "meta": {
+      "dict": {
+        "Functions": "Stored procedures and functions"
+      }
+    }
+  }
+}

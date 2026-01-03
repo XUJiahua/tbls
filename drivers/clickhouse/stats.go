@@ -28,6 +28,12 @@ func logSQL(query string) {
 // numericTypeRe matches ClickHouse numeric types
 var numericTypeRe = regexp.MustCompile(`(?i)^(U?Int\d+|Float\d+|Decimal.*|Nullable\((U?Int\d+|Float\d+|Decimal.*)\))`)
 
+// dateTypeRe matches ClickHouse date/datetime types
+var dateTypeRe = regexp.MustCompile(`(?i)^(Date|Date32|DateTime|DateTime64.*|Nullable\((Date|Date32|DateTime|DateTime64.*)\))`)
+
+// stringTypeRe matches ClickHouse string types
+var stringTypeRe = regexp.MustCompile(`(?i)^(String|FixedString.*|UUID|Nullable\((String|FixedString.*|UUID)\))`)
+
 // backquote escapes ClickHouse identifiers
 func backquote(identifier string) string {
 	return "`" + strings.ReplaceAll(identifier, "`", "``") + "`"
@@ -172,6 +178,8 @@ func extractDateColumn(partitionKey string) string {
 func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string, isLargeTable bool, partitionKey string, cfg drivers.StatsConfig) (*schema.ColumnStats, error) {
 	stats := &schema.ColumnStats{}
 	isNumeric := numericTypeRe.MatchString(colType)
+	isDate := dateTypeRe.MatchString(colType)
+	isString := stringTypeRe.MatchString(colType)
 
 	// Build WHERE clause for large table sampling
 	whereClause := ""
@@ -188,7 +196,8 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 	quotedDB := backquote(dbName)
 	quotedTable := backquote(tableName)
 
-	if isNumeric {
+	switch {
+	case isNumeric:
 		query = fmt.Sprintf(`
 			SELECT
 				count() as row_count,
@@ -196,7 +205,12 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 				countDistinct(%s) as distinct_count,
 				min(%s) as min_val,
 				max(%s) as max_val,
-				avg(%s) as avg_val
+				avg(%s) as avg_val,
+				'' as min_date,
+				'' as max_date,
+				0 as min_len,
+				0 as max_len,
+				0 as avg_len
 			FROM (
 				SELECT %s
 				FROM %s.%s
@@ -204,7 +218,7 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 				LIMIT %d
 			)
 		`, quotedCol, quotedCol, quotedCol, quotedCol, quotedCol, quotedCol, quotedDB, quotedTable, whereClause, cfg.SampleSize)
-	} else {
+	case isDate:
 		query = fmt.Sprintf(`
 			SELECT
 				count() as row_count,
@@ -212,7 +226,54 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 				countDistinct(%s) as distinct_count,
 				0 as min_val,
 				0 as max_val,
-				0 as avg_val
+				0 as avg_val,
+				toString(min(%s)) as min_date,
+				toString(max(%s)) as max_date,
+				0 as min_len,
+				0 as max_len,
+				0 as avg_len
+			FROM (
+				SELECT %s
+				FROM %s.%s
+				%s
+				LIMIT %d
+			)
+		`, quotedCol, quotedCol, quotedCol, quotedCol, quotedCol, quotedDB, quotedTable, whereClause, cfg.SampleSize)
+	case isString:
+		query = fmt.Sprintf(`
+			SELECT
+				count() as row_count,
+				countIf(%s IS NULL) as null_count,
+				countDistinct(%s) as distinct_count,
+				0 as min_val,
+				0 as max_val,
+				0 as avg_val,
+				'' as min_date,
+				'' as max_date,
+				min(length(%s)) as min_len,
+				max(length(%s)) as max_len,
+				avg(length(%s)) as avg_len
+			FROM (
+				SELECT %s
+				FROM %s.%s
+				%s
+				LIMIT %d
+			)
+		`, quotedCol, quotedCol, quotedCol, quotedCol, quotedCol, quotedCol, quotedDB, quotedTable, whereClause, cfg.SampleSize)
+	default:
+		query = fmt.Sprintf(`
+			SELECT
+				count() as row_count,
+				countIf(%s IS NULL) as null_count,
+				countDistinct(%s) as distinct_count,
+				0 as min_val,
+				0 as max_val,
+				0 as avg_val,
+				'' as min_date,
+				'' as max_date,
+				0 as min_len,
+				0 as max_len,
+				0 as avg_len
 			FROM (
 				SELECT %s
 				FROM %s.%s
@@ -231,8 +292,13 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 		minVal        float64
 		maxVal        float64
 		avgVal        float64
+		minDate       string
+		maxDate       string
+		minLen        int64
+		maxLen        int64
+		avgLen        float64
 	)
-	if err := row.Scan(&rowCount, &nullCount, &distinctCount, &minVal, &maxVal, &avgVal); err != nil {
+	if err := row.Scan(&rowCount, &nullCount, &distinctCount, &minVal, &maxVal, &avgVal, &minDate, &maxDate, &minLen, &maxLen, &avgLen); err != nil {
 		return nil, err
 	}
 
@@ -247,6 +313,17 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 		stats.Min = &minVal
 		stats.Max = &maxVal
 		stats.Avg = &avgVal
+	}
+
+	if isDate && minDate != "" {
+		stats.MinDate = &minDate
+		stats.MaxDate = &maxDate
+	}
+
+	if isString {
+		stats.MinLength = &minLen
+		stats.MaxLength = &maxLen
+		stats.AvgLength = &avgLen
 	}
 
 	// Get top N values
