@@ -129,14 +129,45 @@ type DetectVirtualRelations struct {
 
 // StatsConfig holds configuration for statistics collection
 type StatsConfig struct {
-	Enabled             bool            `yaml:"enabled" json:"enabled"`
-	Include             []string        `yaml:"include,omitempty" json:"include,omitempty"`
-	Exclude             []string        `yaml:"exclude,omitempty" json:"exclude,omitempty"`
-	TopN                int             `yaml:"topN,omitempty" json:"topN,omitempty"`
-	SampleSize          int             `yaml:"sampleSize,omitempty" json:"sampleSize,omitempty"`
-	LargeTableThreshold int64           `yaml:"largeTableThreshold,omitempty" json:"largeTableThreshold,omitempty"`
-	RecentDays          int             `yaml:"recentDays,omitempty" json:"recentDays,omitempty"`
-	Inference           InferenceConfig `yaml:"inference,omitempty" json:"inference,omitempty"`
+	Enabled             bool             `yaml:"enabled" json:"enabled"`
+	Include             []string         `yaml:"include,omitempty" json:"include,omitempty"`
+	Exclude             []string         `yaml:"exclude,omitempty" json:"exclude,omitempty"`
+	TopN                int              `yaml:"topN,omitempty" json:"topN,omitempty"`
+	SampleSize          int              `yaml:"sampleSize,omitempty" json:"sampleSize,omitempty"`
+	LargeTableThreshold int64            `yaml:"largeTableThreshold,omitempty" json:"largeTableThreshold,omitempty"`
+	RecentDays          int              `yaml:"recentDays,omitempty" json:"recentDays,omitempty"`
+	Inference           InferenceConfig  `yaml:"inference,omitempty" json:"inference,omitempty"`
+	Checkpoint          CheckpointConfig `yaml:"checkpoint,omitempty" json:"checkpoint,omitempty"`
+}
+
+// CheckpointConfig holds configuration for checkpoint/resume functionality
+type CheckpointConfig struct {
+	Enabled bool   `yaml:"enabled" json:"enabled"`
+	TTL     string `yaml:"ttl,omitempty" json:"ttl,omitempty"` // Duration string like "24h"
+	Force   bool   `yaml:"force,omitempty" json:"force,omitempty"`
+}
+
+// UnmarshalYAML supports both `checkpoint: true` and `checkpoint: {enabled: true, ...}`
+func (c *CheckpointConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// Try boolean first
+	var boolVal bool
+	if err := unmarshal(&boolVal); err == nil {
+		c.Enabled = boolVal
+		return nil
+	}
+
+	// Try object
+	type plain CheckpointConfig
+	return unmarshal((*plain)(c))
+}
+
+// DefaultCheckpointConfig returns default checkpoint configuration
+func DefaultCheckpointConfig() CheckpointConfig {
+	return CheckpointConfig{
+		Enabled: true,
+		TTL:     "24h",
+		Force:   false,
+	}
 }
 
 // InferenceConfig holds configuration for stats-based inference
@@ -370,6 +401,21 @@ func (c *Config) setDefault() error {
 		}
 		if c.Stats.Inference.ForeignKeyMinConfidence == 0 {
 			c.Stats.Inference.ForeignKeyMinConfidence = defaults.ForeignKeyMinConfidence
+		}
+	}
+
+	// Checkpoint defaults (checkpoint is enabled by default when stats is enabled)
+	if c.Stats.Enabled {
+		checkpointDefaults := DefaultCheckpointConfig()
+		// If checkpoint config was not explicitly set, use defaults
+		if c.Stats.Checkpoint.TTL == "" {
+			c.Stats.Checkpoint.TTL = checkpointDefaults.TTL
+		}
+		// Enabled defaults to true unless explicitly disabled
+		// Note: This is handled by the zero value being false, so we check if it wasn't set
+		// In YAML, if checkpoint is not specified at all, we default to enabled
+		if !c.Stats.Checkpoint.Force && c.Stats.Checkpoint.TTL == checkpointDefaults.TTL {
+			c.Stats.Checkpoint.Enabled = true
 		}
 	}
 

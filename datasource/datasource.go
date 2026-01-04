@@ -29,6 +29,7 @@ import (
 	"github.com/k1LoW/tbls/drivers/snowflake"
 	"github.com/k1LoW/tbls/drivers/sqlite"
 	"github.com/k1LoW/tbls/schema"
+	"github.com/k1LoW/tbls/stats"
 	"github.com/xo/dburl"
 )
 
@@ -168,21 +169,49 @@ func Analyze(dsn config.DSN) (_ *schema.Schema, err error) {
 
 // AnalyzeWithStats analyzes database and optionally collects statistics
 func AnalyzeWithStats(dsn config.DSN, cfg *config.Config) (*schema.Schema, error) {
+	return AnalyzeWithStatsAndProgress(dsn, cfg, nil)
+}
+
+// AnalyzeWithStatsAndProgress analyzes database with optional progress reporting and checkpoint support
+func AnalyzeWithStatsAndProgress(dsn config.DSN, cfg *config.Config, reporter stats.ProgressReporter) (*schema.Schema, error) {
+	// Report analyzing stage
+	if reporter != nil {
+		reporter.Report(stats.Progress{Stage: stats.StageAnalyzing})
+	}
+
 	s, err := Analyze(dsn)
 	if err != nil {
+		if reporter != nil {
+			reporter.Report(stats.Progress{Stage: stats.StageFailed})
+		}
 		return nil, err
 	}
 
 	// Collect stats if enabled
 	if cfg != nil && cfg.Stats.Enabled {
-		if err := collectStats(s, dsn, cfg); err != nil {
-			// Log error but don't fail - stats are optional
-			// TODO: consider adding proper logging
-			_ = err
+		// Report collecting stats stage
+		if reporter != nil {
+			reporter.Report(stats.Progress{Stage: stats.StageCollectingStats})
+		}
+
+		if err := collectStatsWithProgress(s, dsn, cfg, reporter); err != nil {
+			if reporter != nil {
+				if err == clickhouse.ErrCancelled {
+					reporter.Report(stats.Progress{Stage: stats.StageCancelled})
+				} else {
+					reporter.Report(stats.Progress{Stage: stats.StageFailed})
+				}
+			}
+			return nil, err
 		}
 
 		// Run inference if enabled
 		if cfg.Stats.Inference.Enabled {
+			// Report inference stage
+			if reporter != nil {
+				reporter.Report(stats.Progress{Stage: stats.StageInferring})
+			}
+
 			opts := &schema.InferenceOptions{
 				EnumMaxCardinality:      cfg.Stats.Inference.EnumMaxCardinality,
 				EnumMaxDistinct:         cfg.Stats.Inference.EnumMaxDistinct,
@@ -192,17 +221,64 @@ func AnalyzeWithStats(dsn config.DSN, cfg *config.Config) (*schema.Schema, error
 			}
 			inferrer := schema.NewInferrer(opts)
 			if err := inferrer.RunInference(s); err != nil {
-				// Log error but don't fail - inference is optional
-				_ = err
+				if reporter != nil {
+					reporter.Report(stats.Progress{Stage: stats.StageFailed})
+				}
+				return nil, err
 			}
 		}
+	}
+
+	// Report completed
+	if reporter != nil {
+		reporter.Report(stats.Progress{Stage: stats.StageCompleted})
 	}
 
 	return s, nil
 }
 
-func collectStats(s *schema.Schema, dsn config.DSN, cfg *config.Config) error {
+func collectStatsWithProgress(s *schema.Schema, dsn config.DSN, cfg *config.Config, reporter stats.ProgressReporter) error {
 	urlstr := dsn.URL
+
+	// Setup checkpoint if enabled
+	var checkpointAdapter *stats.CheckpointAdapter
+	var progressAdapter *stats.ProgressAdapter
+
+	if cfg.Stats.Checkpoint.Enabled {
+		ttl, err := time.ParseDuration(cfg.Stats.Checkpoint.TTL)
+		if err != nil {
+			ttl = 24 * time.Hour
+		}
+
+		cpManager := stats.NewCheckpointManager(cfg.DocPath, ttl, cfg.Stats.Checkpoint.Force)
+		dsnHash := stats.HashDSN(dsn.URL)
+		schemaHash := stats.HashSchema(s)
+
+		// Try to load existing checkpoint
+		cp, err := cpManager.Load(dsnHash, schemaHash)
+		if err != nil {
+			// Log warning but continue
+			cp = nil
+		}
+
+		if cp != nil {
+			// Resume from checkpoint - apply partial results
+			stats.ApplyCheckpoint(s, cp)
+		} else {
+			// Create new checkpoint
+			cp = &stats.Checkpoint{
+				DSNHash:    dsnHash,
+				SchemaHash: schemaHash,
+				Stage:      stats.StageCollectingStats,
+			}
+		}
+
+		checkpointAdapter = stats.NewCheckpointAdapter(cpManager, cp)
+	}
+
+	if reporter != nil {
+		progressAdapter = stats.NewProgressAdapter(reporter)
+	}
 
 	statsCfg := drivers.StatsConfig{
 		Include:             cfg.Stats.Include,
@@ -211,7 +287,11 @@ func collectStats(s *schema.Schema, dsn config.DSN, cfg *config.Config) error {
 		SampleSize:          cfg.Stats.SampleSize,
 		LargeTableThreshold: cfg.Stats.LargeTableThreshold,
 		RecentDays:          cfg.Stats.RecentDays,
+		Progress:            progressAdapter,
+		Checkpoint:          checkpointAdapter,
 	}
+
+	var collectErr error
 
 	// Handle ClickHouse HTTP protocol
 	if strings.HasPrefix(urlstr, "clickhouse+http://") || strings.HasPrefix(urlstr, "clickhouse+https://") {
@@ -223,29 +303,37 @@ func collectStats(s *schema.Schema, dsn config.DSN, cfg *config.Config) error {
 		defer db.Close()
 
 		driver := clickhouse.New(db)
-		return driver.CollectStats(s, statsCfg)
-	}
-
-	// Handle other drivers via dburl
-	u, err := dburl.Parse(urlstr)
-	if err != nil {
-		return err
-	}
-
-	switch u.Driver {
-	case "clickhouse":
-		db, err := dburl.Open(urlstr)
+		collectErr = driver.CollectStats(s, statsCfg)
+	} else {
+		// Handle other drivers via dburl
+		u, err := dburl.Parse(urlstr)
 		if err != nil {
 			return err
 		}
-		defer db.Close()
 
-		driver := clickhouse.New(db)
-		return driver.CollectStats(s, statsCfg)
-	default:
-		// Stats not supported for this driver
-		return nil
+		switch u.Driver {
+		case "clickhouse":
+			db, err := dburl.Open(urlstr)
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+
+			driver := clickhouse.New(db)
+			collectErr = driver.CollectStats(s, statsCfg)
+		default:
+			// Stats not supported for this driver
+			return nil
+		}
 	}
+
+	// Clean up checkpoint on success
+	if collectErr == nil && checkpointAdapter != nil {
+		cpManager := stats.NewCheckpointManager(cfg.DocPath, 0, false)
+		_ = cpManager.Delete()
+	}
+
+	return collectErr
 }
 
 // AnalyzeClickHouseHTTP analyzes ClickHouse database using HTTP protocol

@@ -15,3 +15,9 @@ comments:
   columnComments:
     b: column comment required.
     b2: column comment required.
+stats:
+  enabled: false
+  topN: 10
+  sampleSize: 10000
+  largeTableThreshold: 1000000
+  recentDays: 30

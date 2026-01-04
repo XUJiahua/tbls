@@ -39,6 +39,9 @@ func backquote(identifier string) string {
 	return "`" + strings.ReplaceAll(identifier, "`", "``") + "`"
 }
 
+// ErrCancelled is returned when the operation is cancelled
+var ErrCancelled = fmt.Errorf("operation cancelled")
+
 // CollectStats collects statistics for all tables in the schema
 func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) error {
 	// Get table stats from system.tables
@@ -47,9 +50,25 @@ func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) er
 		return err
 	}
 
+	// Calculate total columns for progress reporting
+	totalColumns := 0
+	for _, table := range s.Tables {
+		if shouldCollectStats(table.Name, cfg.Include, cfg.Exclude) {
+			totalColumns += len(table.Columns)
+		}
+	}
+
+	completedColumns := 0
+
 	for _, table := range s.Tables {
 		// Check if this table should have stats collected
 		if !shouldCollectStats(table.Name, cfg.Include, cfg.Exclude) {
+			continue
+		}
+
+		// Skip if table is already completed (from checkpoint)
+		if cfg.Checkpoint != nil && cfg.Checkpoint.IsTableCompleted(table.Name) {
+			completedColumns += len(table.Columns)
 			continue
 		}
 
@@ -64,12 +83,45 @@ func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) er
 
 		// Collect column stats
 		for _, col := range table.Columns {
-			colStats, err := ch.getColumnStats(s.Name, table.Name, col.Name, col.Type, isLargeTable, partitionKey, cfg)
-			if err != nil {
-				// Log error but continue with other columns
+			// Check for cancellation
+			if cfg.Progress != nil && cfg.Progress.IsCancelled() {
+				if cfg.Checkpoint != nil {
+					_ = cfg.Checkpoint.Save()
+				}
+				return ErrCancelled
+			}
+
+			// Skip if column is already completed (from checkpoint)
+			if cfg.Checkpoint != nil && cfg.Checkpoint.IsColumnCompleted(table.Name, col.Name) {
+				completedColumns++
 				continue
 			}
+
+			// Report progress
+			if cfg.Progress != nil {
+				cfg.Progress.ReportColumn(table.Name, col.Name, completedColumns, totalColumns)
+			}
+
+			colStats, err := ch.getColumnStats(s.Name, table.Name, col.Name, col.Type, isLargeTable, partitionKey, cfg)
+			if err != nil {
+				// Save checkpoint and return error
+				if cfg.Checkpoint != nil {
+					_ = cfg.Checkpoint.Save()
+				}
+				return fmt.Errorf("failed to collect stats for %s.%s: %w", table.Name, col.Name, err)
+			}
 			col.Stats = colStats
+			completedColumns++
+
+			// Update checkpoint
+			if cfg.Checkpoint != nil {
+				cfg.Checkpoint.UpdateColumn(table.Name, col.Name, colStats)
+			}
+		}
+
+		// Mark table as completed
+		if cfg.Checkpoint != nil {
+			cfg.Checkpoint.MarkTableCompleted(table.Name)
 		}
 	}
 

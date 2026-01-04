@@ -23,8 +23,10 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/k1LoW/errors"
 	"github.com/k1LoW/tbls/cmdutil"
@@ -34,12 +36,15 @@ import (
 	"github.com/k1LoW/tbls/output/json"
 	"github.com/k1LoW/tbls/output/md"
 	"github.com/k1LoW/tbls/schema"
+	"github.com/k1LoW/tbls/stats"
 	"github.com/spf13/cobra"
 )
 
 var (
-	withoutER bool
-	rmDist    bool
+	withoutER    bool
+	rmDist       bool
+	forceStats   bool
+	noCheckpoint bool
 )
 
 // docCmd represents the doc command.
@@ -69,7 +74,31 @@ var docCmd = &cobra.Command{
 			return err
 		}
 
-		s, err := datasource.AnalyzeWithStats(c.DSN, c)
+		// Apply command line overrides for checkpoint settings
+		if forceStats {
+			c.Stats.Checkpoint.Force = true
+		}
+		if noCheckpoint {
+			c.Stats.Checkpoint.Enabled = false
+		}
+
+		// Create progress reporter for CLI
+		var reporter stats.ProgressReporter
+		if c.Stats.Enabled {
+			cliReporter := stats.NewCLIProgressReporter(os.Stdout)
+			reporter = cliReporter
+
+			// Setup signal handling for graceful cancellation
+			sigCh := make(chan os.Signal, 1)
+			signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+			go func() {
+				<-sigCh
+				cliReporter.Cancel()
+			}()
+			defer signal.Stop(sigCh)
+		}
+
+		s, err := datasource.AnalyzeWithStatsAndProgress(c.DSN, c, reporter)
 		if err != nil {
 			return err
 		}
@@ -177,6 +206,10 @@ func init() {
 	docCmd.Flags().StringSliceVarP(&includes, "include", "", []string{}, "tables to include")
 	docCmd.Flags().StringSliceVarP(&excludes, "exclude", "", []string{}, "tables to exclude")
 	docCmd.Flags().StringSliceVarP(&labels, "label", "", []string{}, "table labels to be included")
+
+	// Stats checkpoint flags
+	docCmd.Flags().BoolVarP(&forceStats, "force-stats", "", false, "force stats collection, ignoring checkpoint")
+	docCmd.Flags().BoolVarP(&noCheckpoint, "no-checkpoint", "", false, "disable checkpoint for stats collection")
 
 	if err := docCmd.MarkZshCompPositionalArgumentFile(2); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "%s\n", err)

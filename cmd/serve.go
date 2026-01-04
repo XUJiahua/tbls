@@ -22,16 +22,22 @@ package cmd
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/k1LoW/tbls/config"
 	"github.com/k1LoW/tbls/datasource"
+	"github.com/k1LoW/tbls/stats"
 	"github.com/spf13/cobra"
 )
 
 var (
 	serveAddr string
 )
+
+// taskStore holds all task states
+var taskStore = stats.NewTaskStore()
 
 // serveCmd represents the serve command.
 var serveCmd = &cobra.Command{
@@ -42,15 +48,28 @@ var serveCmd = &cobra.Command{
 		gin.SetMode(gin.ReleaseMode)
 		r := gin.Default()
 
-		r.POST("/schema", handleSchema)
+		// Async schema analysis
+		r.POST("/schema", handleSchemaAsync)
+
+		// Get task status
+		r.GET("/schema/status/:task_id", handleSchemaStatus)
+
+		// Cancel task
+		r.DELETE("/schema/:task_id", handleSchemaCancel)
 
 		return r.Run(serveAddr)
 	},
 }
 
-func handleSchema(c *gin.Context) {
-	var cfg config.Config
-	if err := c.ShouldBindJSON(&cfg); err != nil {
+// schemaRequest is the request body for /schema endpoint
+type schemaRequest struct {
+	config.Config
+	Force bool `json:"force,omitempty"` // Force stats collection, ignoring checkpoint
+}
+
+func handleSchemaAsync(c *gin.Context) {
+	var req schemaRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
 		})
@@ -58,31 +77,163 @@ func handleSchema(c *gin.Context) {
 	}
 
 	// Validate DSN is required
-	if cfg.DSN.URL == "" {
+	if req.DSN.URL == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "dsn.url is required",
 		})
 		return
 	}
 
-	// Analyze database
-	s, err := datasource.AnalyzeWithStats(cfg.DSN, &cfg)
+	// Apply force flag
+	if req.Force {
+		req.Stats.Checkpoint.Force = true
+	}
+
+	// Generate task ID
+	taskID := uuid.New().String()
+
+	// Create task status
+	taskStatus := &stats.TaskStatus{
+		TaskID:    taskID,
+		Status:    "pending",
+		Stage:     stats.StageAnalyzing,
+		StartedAt: time.Now(),
+	}
+	taskStore.Set(taskID, taskStatus)
+
+	// Start async processing
+	go processSchemaAsync(taskID, req.Config)
+
+	c.JSON(http.StatusAccepted, gin.H{
+		"task_id": taskID,
+		"status":  "pending",
+	})
+}
+
+func processSchemaAsync(taskID string, cfg config.Config) {
+	// Create progress reporter
+	reporter := stats.NewTaskProgressReporter(taskID, taskStore)
+
+	// Update status to running
+	taskStore.Update(taskID, func(task *stats.TaskStatus) {
+		task.Status = "running"
+	})
+
+	// Analyze database with progress reporting
+	s, err := datasource.AnalyzeWithStatsAndProgress(cfg.DSN, &cfg, reporter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
+		taskStore.Update(taskID, func(task *stats.TaskStatus) {
+			task.Status = "failed"
+			task.Error = err.Error()
+			task.CompletedAt = time.Now()
 		})
 		return
 	}
 
-	// Apply config modifications (relations, comments, filters, etc.)
+	// Apply config modifications
 	if err := cfg.ModifySchema(s); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
+		taskStore.Update(taskID, func(task *stats.TaskStatus) {
+			task.Status = "failed"
+			task.Error = err.Error()
+			task.CompletedAt = time.Now()
 		})
 		return
 	}
 
-	c.JSON(http.StatusOK, s)
+	// Store result
+	taskStore.Update(taskID, func(task *stats.TaskStatus) {
+		task.Status = "completed"
+		task.Stage = stats.StageCompleted
+		task.Result = s
+		task.CompletedAt = time.Now()
+	})
+}
+
+func handleSchemaStatus(c *gin.Context) {
+	taskID := c.Param("task_id")
+
+	task, ok := taskStore.Get(taskID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "task not found",
+		})
+		return
+	}
+
+	response := gin.H{
+		"task_id": task.TaskID,
+		"status":  task.Status,
+		"stage":   task.Stage,
+	}
+
+	if task.Progress != nil {
+		response["progress"] = gin.H{
+			"current_table":     task.Progress.CurrentTable,
+			"current_column":    task.Progress.CurrentColumn,
+			"completed_columns": task.Progress.CompletedColumns,
+			"total_columns":     task.Progress.TotalColumns,
+		}
+	}
+
+	if task.ResumedFromCheckpoint {
+		response["resumed_from_checkpoint"] = true
+	}
+
+	if !task.StartedAt.IsZero() {
+		response["started_at"] = task.StartedAt
+	}
+
+	if !task.CompletedAt.IsZero() {
+		response["completed_at"] = task.CompletedAt
+	}
+
+	if task.Error != "" {
+		response["error"] = task.Error
+	}
+
+	if task.Result != nil && task.Status == "completed" {
+		response["result"] = task.Result
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+func handleSchemaCancel(c *gin.Context) {
+	taskID := c.Param("task_id")
+
+	task, ok := taskStore.Get(taskID)
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "task not found",
+		})
+		return
+	}
+
+	// Check if task is still running
+	if task.Status != "running" && task.Status != "pending" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "task is not running",
+			"status":  task.Status,
+			"task_id": taskID,
+		})
+		return
+	}
+
+	// Get the reporter and cancel it
+	// Note: The reporter is created inside processSchemaAsync, so we need
+	// to update the task status directly. The reporter will check IsCancelled
+	// during processing.
+	taskStore.Update(taskID, func(t *stats.TaskStatus) {
+		t.Status = "cancelled"
+		t.Stage = stats.StageCancelled
+		t.CompletedAt = time.Now()
+	})
+
+	c.JSON(http.StatusOK, gin.H{
+		"task_id":          taskID,
+		"status":           "cancelled",
+		"checkpoint_saved": true,
+	})
 }
 
 func init() {
