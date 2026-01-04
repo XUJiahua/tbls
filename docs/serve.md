@@ -23,7 +23,7 @@ tbls serve --addr :3000
 
 ### POST /schema
 
-Analyze a database and return the schema as JSON.
+Analyze a database asynchronously. Returns a task ID immediately for progress polling.
 
 #### Request
 
@@ -67,7 +67,8 @@ The request body accepts the same configuration as `.tbls.yml`, with `dsn.url` b
   "detectVirtualRelations": {
     "enabled": true,
     "strategy": "default"
-  }
+  },
+  "force": false
 }
 ```
 
@@ -92,37 +93,18 @@ The request body accepts the same configuration as `.tbls.yml`, with `dsn.url` b
 | `comments` | array | Additional comments to add |
 | `detectVirtualRelations.enabled` | bool | Enable virtual relation detection |
 | `detectVirtualRelations.strategy` | string | Naming strategy (default, rails, laravel) |
+| `force` | bool | Force stats collection, ignoring checkpoint |
 
 #### Response
 
-**Success (200 OK):**
+**Accepted (202 Accepted):**
 
-Returns the database schema as JSON:
+Returns a task ID for polling:
 
 ```json
 {
-  "name": "mydb",
-  "tables": [
-    {
-      "name": "users",
-      "type": "table",
-      "columns": [
-        {
-          "name": "id",
-          "type": "INTEGER",
-          "nullable": false
-        }
-      ],
-      "indexes": [...],
-      "constraints": [...],
-      "def": "CREATE TABLE ..."
-    }
-  ],
-  "relations": [...],
-  "driver": {
-    "name": "postgres",
-    "database_version": "15.0"
-  }
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "pending"
 }
 ```
 
@@ -134,68 +116,183 @@ Returns the database schema as JSON:
 }
 ```
 
-**Error (500 Internal Server Error):**
+### GET /schema/status/:task_id
+
+Get the status and progress of a schema analysis task.
+
+#### Response
+
+**Running (200 OK):**
 
 ```json
 {
-  "error": "failed to connect to database: ..."
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "running",
+  "stage": "collecting_stats",
+  "progress": {
+    "current_table": "orders",
+    "current_column": "customer_id",
+    "completed_columns": 45,
+    "total_columns": 200
+  },
+  "resumed_from_checkpoint": true,
+  "started_at": "2025-01-04T10:30:00Z"
+}
+```
+
+**Completed (200 OK):**
+
+```json
+{
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "completed",
+  "stage": "completed",
+  "started_at": "2025-01-04T10:30:00Z",
+  "completed_at": "2025-01-04T10:35:00Z",
+  "result": {
+    "name": "mydb",
+    "tables": [...],
+    "relations": [...],
+    "driver": {...}
+  }
+}
+```
+
+**Failed (200 OK):**
+
+```json
+{
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "failed",
+  "stage": "failed",
+  "error": "connection refused",
+  "started_at": "2025-01-04T10:30:00Z",
+  "completed_at": "2025-01-04T10:30:05Z"
+}
+```
+
+**Not Found (404 Not Found):**
+
+```json
+{
+  "error": "task not found"
+}
+```
+
+#### Task Status Values
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Task queued, not yet started |
+| `running` | Task in progress |
+| `completed` | Task finished successfully |
+| `failed` | Task failed with error |
+| `cancelled` | Task was cancelled |
+
+#### Stage Values
+
+| Stage | Description |
+|-------|-------------|
+| `analyzing` | Analyzing database schema |
+| `collecting_stats` | Collecting column statistics |
+| `inferring` | Running inference on statistics |
+| `completed` | All stages completed |
+| `failed` | Processing failed |
+| `cancelled` | Task was cancelled |
+
+### DELETE /schema/:task_id
+
+Cancel a running task. The current progress is saved to a checkpoint file.
+
+#### Response
+
+**Success (200 OK):**
+
+```json
+{
+  "task_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "cancelled",
+  "checkpoint_saved": true
+}
+```
+
+**Not Found (404 Not Found):**
+
+```json
+{
+  "error": "task not found"
+}
+```
+
+**Bad Request (400 Bad Request):**
+
+```json
+{
+  "error": "task is not running",
+  "status": "completed",
+  "task_id": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
 ## Examples
 
-### Basic Usage
+### Basic Usage (Async)
 
 ```bash
 # Start the server
 tbls serve -a :8080
 
-# In another terminal, query a SQLite database
-curl -X POST http://localhost:8080/schema \
+# Submit a task
+RESPONSE=$(curl -s -X POST http://localhost:8080/schema \
   -H "Content-Type: application/json" \
-  -d '{"dsn": {"url": "sqlite:///path/to/db.sqlite"}}'
+  -d '{"dsn": {"url": "sqlite:///path/to/db.sqlite"}}')
+
+TASK_ID=$(echo $RESPONSE | jq -r '.task_id')
+echo "Task ID: $TASK_ID"
+
+# Poll for status
+curl -s http://localhost:8080/schema/status/$TASK_ID | jq
 ```
 
-### PostgreSQL with Filtering
+### Polling Until Completion
 
 ```bash
-curl -X POST http://localhost:8080/schema \
-  -H "Content-Type: application/json" \
-  -d '{
-    "dsn": {"url": "postgres://user:pass@localhost:5432/mydb"},
-    "include": ["users", "orders", "products"],
-    "exclude": ["*_archive"]
-  }'
+#!/bin/bash
+TASK_ID="$1"
+
+while true; do
+  RESPONSE=$(curl -s http://localhost:8080/schema/status/$TASK_ID)
+  STATUS=$(echo $RESPONSE | jq -r '.status')
+
+  case $STATUS in
+    "completed")
+      echo "Task completed!"
+      echo $RESPONSE | jq '.result'
+      break
+      ;;
+    "failed")
+      echo "Task failed: $(echo $RESPONSE | jq -r '.error')"
+      exit 1
+      ;;
+    "cancelled")
+      echo "Task was cancelled"
+      exit 0
+      ;;
+    *)
+      STAGE=$(echo $RESPONSE | jq -r '.stage')
+      PROGRESS=$(echo $RESPONSE | jq -r '.progress.completed_columns // 0')
+      TOTAL=$(echo $RESPONSE | jq -r '.progress.total_columns // 0')
+      echo "[$STAGE] Progress: $PROGRESS/$TOTAL columns"
+      sleep 2
+      ;;
+  esac
+done
 ```
 
-### MySQL with Additional Relations
+### Cancel a Running Task
 
 ```bash
-curl -X POST http://localhost:8080/schema \
-  -H "Content-Type: application/json" \
-  -d '{
-    "dsn": {"url": "mysql://user:pass@localhost:3306/mydb"},
-    "relations": [
-      {
-        "table": "orders",
-        "columns": ["customer_id"],
-        "parentTable": "customers",
-        "parentColumns": ["id"],
-        "cardinality": "zero or more",
-        "parentCardinality": "exactly one"
-      }
-    ]
-  }'
-```
-
-### ClickHouse
-
-```bash
-curl -X POST http://localhost:8080/schema \
-  -H "Content-Type: application/json" \
-  -d '{
-    "dsn": {"url": "clickhouse://localhost:9000/mydb"}
-  }'
+curl -X DELETE http://localhost:8080/schema/$TASK_ID
 ```
 
 ### With Statistics Collection
@@ -215,6 +312,18 @@ curl -X POST http://localhost:8080/schema \
   }'
 ```
 
+### Force Stats Collection (Ignore Checkpoint)
+
+```bash
+curl -X POST http://localhost:8080/schema \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dsn": {"url": "clickhouse://localhost:9000/mydb"},
+    "stats": {"enabled": true},
+    "force": true
+  }'
+```
+
 #### Stats Configuration
 
 | Field | Type | Default | Description |
@@ -226,6 +335,9 @@ curl -X POST http://localhost:8080/schema \
 | `stats.sampleSize` | int | 10000 | Maximum rows to sample |
 | `stats.largeTableThreshold` | int | 1000000 | Row count threshold for large table sampling |
 | `stats.recentDays` | int | 30 | Days to look back for large table sampling |
+| `stats.checkpoint.enabled` | bool | true | Enable checkpoint/resume |
+| `stats.checkpoint.ttl` | string | "24h" | Checkpoint validity duration |
+| `stats.checkpoint.force` | bool | false | Ignore existing checkpoint |
 
 ## Supported Databases
 
