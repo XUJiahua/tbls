@@ -13,3 +13,4 @@ stats:
   enabled: true
   topN: 20           # 收集前 20 个枚举值
   sampleSize: 10000  # 采样大小
+  inference: true    # 启用自动推理

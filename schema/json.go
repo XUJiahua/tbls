@@ -6,15 +6,16 @@ import (
 
 // SchemaJSON is a JSON representation of schema.Schema.
 type SchemaJSON struct { // nolint: revive
-	Name       string          `json:"name,omitempty"`
-	Desc       string          `json:"desc,omitempty"`
-	Tables     []*TableJSON    `json:"tables"`
-	Relations  []*RelationJSON `json:"relations,omitempty"`
-	Functions  []*Function     `json:"functions,omitempty"`
-	Enums      []*Enum         `json:"enums,omitempty"`
-	Driver     *DriverJSON     `json:"driver,omitempty"`
-	Labels     Labels          `json:"labels,omitempty"`
-	Viewpoints Viewpoints      `json:"viewpoints,omitempty"`
+	Name       string            `json:"name,omitempty"`
+	Desc       string            `json:"desc,omitempty"`
+	Tables     []*TableJSON      `json:"tables"`
+	Relations  []*RelationJSON   `json:"relations,omitempty"`
+	Functions  []*Function       `json:"functions,omitempty"`
+	Enums      []*Enum           `json:"enums,omitempty"`
+	Driver     *DriverJSON       `json:"driver,omitempty"`
+	Labels     Labels            `json:"labels,omitempty"`
+	Viewpoints Viewpoints        `json:"viewpoints,omitempty"`
+	Inferences *SchemaInferences `json:"inferences,omitempty"`
 }
 
 // TableJSON is a JSON representation of schema.Table.
@@ -34,14 +35,15 @@ type TableJSON struct {
 
 // ColumnJSON is a JSON representation of schema.Column.
 type ColumnJSON struct {
-	Name     string       `json:"name"`
-	Type     string       `json:"type"`
-	Nullable bool         `json:"nullable"`
-	Default  *string      `json:"default,omitempty" jsonschema:"anyof_type=string;null"`
-	ExtraDef string       `json:"extra_def,omitempty"`
-	Labels   Labels       `json:"labels,omitempty"`
-	Comment  string       `json:"comment,omitempty"`
-	Stats    *ColumnStats `json:"stats,omitempty"`
+	Name       string            `json:"name"`
+	Type       string            `json:"type"`
+	Nullable   bool              `json:"nullable"`
+	Default    *string           `json:"default,omitempty" jsonschema:"anyof_type=string;null"`
+	ExtraDef   string            `json:"extra_def,omitempty"`
+	Labels     Labels            `json:"labels,omitempty"`
+	Comment    string            `json:"comment,omitempty"`
+	Stats      *ColumnStats      `json:"stats,omitempty"`
+	Inferences *ColumnInferences `json:"inferences,omitempty"`
 }
 
 // RelationJSON is a JSON representation of schema.Relation.
@@ -90,6 +92,7 @@ func (s Schema) ToJSONObject() SchemaJSON {
 		Driver:     s.Driver.ToJSONObject(),
 		Labels:     s.Labels,
 		Viewpoints: s.Viewpoints,
+		Inferences: s.Inferences,
 	}
 }
 
@@ -124,14 +127,15 @@ func (c Column) ToJSONObject() ColumnJSON {
 		defaultVal = &c.Default.String
 	}
 	return ColumnJSON{
-		Name:     c.Name,
-		Type:     c.Type,
-		Nullable: c.Nullable,
-		Default:  defaultVal,
-		Comment:  c.Comment,
-		ExtraDef: c.ExtraDef,
-		Labels:   c.Labels,
-		Stats:    c.Stats,
+		Name:       c.Name,
+		Type:       c.Type,
+		Nullable:   c.Nullable,
+		Default:    defaultVal,
+		Comment:    c.Comment,
+		ExtraDef:   c.ExtraDef,
+		Labels:     c.Labels,
+		Stats:      c.Stats,
+		Inferences: c.Inferences,
 	}
 }
 
