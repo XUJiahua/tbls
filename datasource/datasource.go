@@ -241,8 +241,9 @@ func collectStatsWithProgress(s *schema.Schema, dsn config.DSN, cfg *config.Conf
 	urlstr := dsn.URL
 
 	// Setup checkpoint if enabled
-	var checkpointAdapter *stats.CheckpointAdapter
-	var progressAdapter *stats.ProgressAdapter
+	// Use interface types to avoid nil pointer vs nil interface issues
+	var checkpointAdapter drivers.CheckpointUpdater
+	var progressAdapter drivers.ProgressReporter
 
 	if cfg.Stats.Checkpoint.Enabled {
 		ttl, err := time.ParseDuration(cfg.Stats.Checkpoint.TTL)
