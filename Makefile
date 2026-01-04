@@ -174,7 +174,10 @@ generate_test_json: build
 lint:
 	golangci-lint run ./...
 
-build:
+swagger:
+	swag init -g cmd/serve.go -o docs --parseDependency --parseInternal
+
+build: swagger
 	go build -tags timetzdata -ldflags="$(BUILD_LDFLAGS)"
 
 depsdev:
@@ -185,6 +188,7 @@ depsdev:
 	go install github.com/securego/gosec/v2/cmd/gosec@latest
 	go install github.com/santhosh-tekuri/jsonschema/cmd/jv@latest
 	go install github.com/google/go-licenses/v2@latest
+	go install github.com/swaggo/swag/cmd/swag@latest
 
 prerelease:
 	git pull origin --tag

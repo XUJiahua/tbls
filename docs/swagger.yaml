@@ -1,0 +1,896 @@
+basePath: /
+definitions:
+  cmd.CheckpointConfig:
+    description: Checkpoint/resume configuration
+    properties:
+      enabled:
+        description: Enabled enables checkpoint/resume functionality
+        type: boolean
+      force:
+        description: Force ignores existing checkpoint and starts fresh
+        type: boolean
+      ttl:
+        description: TTL is the checkpoint validity duration (Go duration format)
+        example: 24h
+        type: string
+    type: object
+  cmd.CommentConfig:
+    description: Table and column comments configuration
+    properties:
+      columnComments:
+        additionalProperties:
+          type: string
+        description: ColumnComments maps column names to their comments
+        type: object
+      table:
+        description: Table is the table name
+        example: users
+        type: string
+      tableComment:
+        description: TableComment is the comment for the table
+        example: User accounts table
+        type: string
+    type: object
+  cmd.DSNConfig:
+    description: Database connection configuration
+    properties:
+      headers:
+        additionalProperties:
+          type: string
+        description: Headers are custom headers for HTTP-based connections
+        type: object
+      url:
+        description: URL is the database connection string (required)
+        example: postgres://user:pass@localhost:5432/dbname
+        type: string
+    required:
+    - url
+    type: object
+  cmd.DetectVirtualRelationsConfig:
+    description: Virtual relation detection configuration
+    properties:
+      enabled:
+        description: Enabled enables virtual relation detection
+        type: boolean
+      strategy:
+        description: Strategy is the naming strategy (default, rails, laravel)
+        enum:
+        - default
+        - rails
+        - laravel
+        type: string
+    type: object
+  cmd.ErrorResponse:
+    description: Generic error response
+    properties:
+      error:
+        description: Error is the error message
+        example: dsn.url is required
+        type: string
+    type: object
+  cmd.FormatConfig:
+    description: Output format settings
+    properties:
+      adjust:
+        description: Adjust column widths
+        type: boolean
+      sort:
+        description: Sort tables and columns alphabetically
+        type: boolean
+    type: object
+  cmd.ProgressInfo:
+    description: Detailed progress information during stats collection
+    properties:
+      completed_columns:
+        description: CompletedColumns is the number of columns completed
+        example: 45
+        type: integer
+      current_column:
+        description: CurrentColumn is the currently processing column
+        example: customer_id
+        type: string
+      current_table:
+        description: CurrentTable is the currently processing table
+        example: orders
+        type: string
+      total_columns:
+        description: TotalColumns is the total number of columns to process
+        example: 200
+        type: integer
+    type: object
+  cmd.RelationConfig:
+    description: Table relation configuration
+    properties:
+      cardinality:
+        description: Cardinality describes the relationship cardinality
+        enum:
+        - zero or one
+        - exactly one
+        - zero or more
+        - one or more
+        type: string
+      columns:
+        description: Columns are the child table columns
+        example:
+        - author_id
+        items:
+          type: string
+        type: array
+      def:
+        description: Def is the relation definition/description
+        type: string
+      parentColumns:
+        description: ParentColumns are the parent table columns
+        example:
+        - id
+        items:
+          type: string
+        type: array
+      parentTable:
+        description: ParentTable is the parent table name
+        example: users
+        type: string
+      table:
+        description: Table is the child table name
+        example: posts
+        type: string
+    type: object
+  cmd.SchemaRequest:
+    description: Request body for submitting a schema analysis task
+    properties:
+      comments:
+        description: Comments defines additional comments to add
+        items:
+          $ref: '#/definitions/cmd.CommentConfig'
+        type: array
+      desc:
+        description: Desc is the database description
+        type: string
+      detectVirtualRelations:
+        allOf:
+        - $ref: '#/definitions/cmd.DetectVirtualRelationsConfig'
+        description: DetectVirtualRelations configures virtual relation detection
+      distance:
+        description: Distance is the relation distance for filtering
+        type: integer
+      dsn:
+        allOf:
+        - $ref: '#/definitions/cmd.DSNConfig'
+        description: DSN contains the database connection configuration
+      exclude:
+        description: Exclude specifies tables to exclude (supports wildcards)
+        example:
+        - '*_backup'
+        - '*_temp'
+        - '*_log'
+        items:
+          type: string
+        type: array
+      force:
+        description: Force ignores checkpoint and forces stats collection
+        type: boolean
+      format:
+        allOf:
+        - $ref: '#/definitions/cmd.FormatConfig'
+        description: Format contains output format settings
+      include:
+        description: Include specifies tables to include (supports wildcards)
+        example:
+        - users
+        - posts
+        - comments_*
+        items:
+          type: string
+        type: array
+      name:
+        description: Name overrides the database name
+        type: string
+      relations:
+        description: Relations defines additional relations to add
+        items:
+          $ref: '#/definitions/cmd.RelationConfig'
+        type: array
+      stats:
+        allOf:
+        - $ref: '#/definitions/cmd.StatsConfig'
+        description: Stats configures statistics collection
+    required:
+    - dsn
+    type: object
+  cmd.StatsConfig:
+    description: Statistics collection configuration
+    properties:
+      checkpoint:
+        allOf:
+        - $ref: '#/definitions/cmd.CheckpointConfig'
+        description: Checkpoint configures checkpoint/resume functionality
+      enabled:
+        description: Enabled enables statistics collection
+        type: boolean
+      exclude:
+        description: Exclude specifies tables to exclude from stats collection
+        items:
+          type: string
+        type: array
+      include:
+        description: Include specifies tables to collect stats for (supports wildcards)
+        items:
+          type: string
+        type: array
+      largeTableThreshold:
+        description: LargeTableThreshold is the row count threshold for large table
+          sampling
+        example: 1000000
+        type: integer
+      recentDays:
+        description: RecentDays is days to look back for large table sampling
+        example: 30
+        type: integer
+      sampleSize:
+        description: SampleSize is the maximum rows to sample
+        example: 10000
+        type: integer
+      topN:
+        description: TopN is the number of top values to collect per column
+        example: 10
+        type: integer
+    type: object
+  cmd.TaskAcceptedResponse:
+    description: Response when a schema analysis task is accepted
+    properties:
+      status:
+        description: Status is the initial task status
+        example: pending
+        type: string
+      task_id:
+        description: TaskID is the unique task identifier for polling
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
+  cmd.TaskCancelledResponse:
+    description: Response when a task is cancelled
+    properties:
+      checkpoint_saved:
+        description: CheckpointSaved indicates if progress was saved to checkpoint
+        example: true
+        type: boolean
+      status:
+        description: Status is the task status after cancellation
+        example: cancelled
+        type: string
+      task_id:
+        description: TaskID is the task identifier
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
+  cmd.TaskNotRunningError:
+    description: Error response when task is not running
+    properties:
+      error:
+        description: Error is the error message
+        example: task is not running
+        type: string
+      status:
+        description: Status is the current task status
+        example: completed
+        type: string
+      task_id:
+        description: TaskID is the task identifier
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
+  cmd.TaskStatusResponse:
+    description: Task status and progress information
+    properties:
+      completed_at:
+        description: CompletedAt is the task completion time
+        example: "2025-01-04T10:35:00Z"
+        type: string
+      error:
+        description: Error contains the error message if failed
+        example: connection refused
+        type: string
+      progress:
+        allOf:
+        - $ref: '#/definitions/cmd.ProgressInfo'
+        description: Progress contains detailed progress information
+      result:
+        allOf:
+        - $ref: '#/definitions/github_com_k1LoW_tbls_schema.Schema'
+        description: Result contains the schema analysis result
+      resumed_from_checkpoint:
+        description: ResumedFromCheckpoint indicates if task was resumed from checkpoint
+        type: boolean
+      stage:
+        allOf:
+        - $ref: '#/definitions/stats.Stage'
+        description: Stage is the current processing stage
+        enum:
+        - analyzing
+        - collecting_stats
+        - inferring
+        - completed
+        - failed
+        - cancelled
+        example: collecting_stats
+      started_at:
+        description: StartedAt is the task start time
+        example: "2025-01-04T10:30:00Z"
+        type: string
+      status:
+        description: Status is the current task status (pending, running, completed,
+          failed, cancelled)
+        enum:
+        - pending
+        - running
+        - completed
+        - failed
+        - cancelled
+        example: running
+        type: string
+      task_id:
+        description: TaskID is the task identifier
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
+  dict.Dict:
+    type: object
+  github_com_k1LoW_tbls_schema.Column:
+    properties:
+      childRelations:
+        items:
+          $ref: '#/definitions/schema.Relation'
+        type: array
+      comment:
+        type: string
+      default:
+        $ref: '#/definitions/sql.NullString'
+      extraDef:
+        type: string
+      fk:
+        type: boolean
+      hideForER:
+        type: boolean
+      inferences:
+        $ref: '#/definitions/schema.ColumnInferences'
+      labels:
+        items:
+          $ref: '#/definitions/schema.Label'
+        type: array
+      name:
+        type: string
+      nullable:
+        type: boolean
+      occurrences:
+        $ref: '#/definitions/sql.NullInt32'
+      parentRelations:
+        items:
+          $ref: '#/definitions/schema.Relation'
+        type: array
+      percents:
+        $ref: '#/definitions/sql.NullFloat64'
+      pk:
+        type: boolean
+      stats:
+        $ref: '#/definitions/schema.ColumnStats'
+      type:
+        type: string
+    type: object
+  github_com_k1LoW_tbls_schema.Schema:
+    properties:
+      desc:
+        type: string
+      driver:
+        $ref: '#/definitions/schema.Driver'
+      enums:
+        items:
+          $ref: '#/definitions/schema.Enum'
+        type: array
+      functions:
+        items:
+          $ref: '#/definitions/schema.Function'
+        type: array
+      inferences:
+        $ref: '#/definitions/schema.SchemaInferences'
+      labels:
+        items:
+          $ref: '#/definitions/schema.Label'
+        type: array
+      name:
+        type: string
+      relations:
+        items:
+          $ref: '#/definitions/schema.Relation'
+        type: array
+      tables:
+        items:
+          $ref: '#/definitions/schema.Table'
+        type: array
+      viewpoints:
+        items:
+          $ref: '#/definitions/schema.Viewpoint'
+        type: array
+    type: object
+  schema.BusinessInsight:
+    properties:
+      description:
+        type: string
+      tables:
+        items:
+          type: string
+        type: array
+      type:
+        type: string
+      value:
+        type: number
+    type: object
+  schema.Cardinality:
+    enum:
+    - zero_or_one
+    - exactly_one
+    - zero_or_more
+    - one_or_more
+    - ""
+    type: string
+    x-enum-varnames:
+    - ZeroOrOne
+    - ExactlyOne
+    - ZeroOrMore
+    - OneOrMore
+    - UnknownCardinality
+  schema.ColumnInferences:
+    properties:
+      cardinality:
+        type: number
+      distribution:
+        description: Data distribution (derived from top_values)
+        items:
+          $ref: '#/definitions/schema.DistributionItem'
+        type: array
+      enum_type:
+        description: '"enum" | "dictionary" | "high_cardinality"'
+        type: string
+      has_nulls:
+        description: Data quality
+        type: boolean
+      is_complete:
+        type: boolean
+      is_enum:
+        description: Enum / dictionary column detection
+        type: boolean
+      is_primary_key:
+        description: Primary key / unique identifier detection
+        type: boolean
+      is_unique:
+        type: boolean
+    type: object
+  schema.ColumnStats:
+    properties:
+      avg:
+        type: number
+      avg_length:
+        type: number
+      distinct_count:
+        type: integer
+      max:
+        type: number
+      max_date:
+        type: string
+      max_length:
+        type: integer
+      min:
+        type: number
+      min_date:
+        type: string
+      min_length:
+        type: integer
+      null_count:
+        type: integer
+      null_percent:
+        type: number
+      row_count:
+        type: integer
+      top_values:
+        items:
+          $ref: '#/definitions/schema.TopValue'
+        type: array
+    type: object
+  schema.Constraint:
+    properties:
+      columns:
+        items:
+          type: string
+        type: array
+      comment:
+        type: string
+      def:
+        type: string
+      name:
+        type: string
+      referenced_columns:
+        items:
+          type: string
+        type: array
+      referenced_table:
+        type: string
+      table:
+        type: string
+      type:
+        type: string
+    type: object
+  schema.DistributionItem:
+    properties:
+      count:
+        type: integer
+      percent:
+        type: number
+      value:
+        type: string
+    type: object
+  schema.Driver:
+    properties:
+      database_version:
+        type: string
+      meta:
+        $ref: '#/definitions/schema.DriverMeta'
+      name:
+        type: string
+    type: object
+  schema.DriverMeta:
+    properties:
+      current_schema:
+        type: string
+      dict:
+        $ref: '#/definitions/dict.Dict'
+      search_paths:
+        items:
+          type: string
+        type: array
+    type: object
+  schema.Enum:
+    properties:
+      name:
+        type: string
+      values:
+        items:
+          type: string
+        type: array
+    type: object
+  schema.Function:
+    properties:
+      arguments:
+        type: string
+      name:
+        type: string
+      return_type:
+        type: string
+      type:
+        type: string
+    type: object
+  schema.Index:
+    properties:
+      columns:
+        items:
+          type: string
+        type: array
+      comment:
+        type: string
+      def:
+        type: string
+      name:
+        type: string
+      table:
+        type: string
+    type: object
+  schema.InferredForeignKey:
+    properties:
+      confidence:
+        type: number
+      source_column:
+        type: string
+      source_table:
+        type: string
+      target_column:
+        type: string
+      target_table:
+        type: string
+    type: object
+  schema.Label:
+    properties:
+      name:
+        type: string
+      virtual:
+        type: boolean
+    type: object
+  schema.Relation:
+    properties:
+      cardinality:
+        $ref: '#/definitions/schema.Cardinality'
+      columns:
+        items:
+          $ref: '#/definitions/github_com_k1LoW_tbls_schema.Column'
+        type: array
+      def:
+        type: string
+      hideForER:
+        type: boolean
+      parentCardinality:
+        $ref: '#/definitions/schema.Cardinality'
+      parentColumns:
+        items:
+          $ref: '#/definitions/github_com_k1LoW_tbls_schema.Column'
+        type: array
+      parentTable:
+        $ref: '#/definitions/schema.Table'
+      table:
+        $ref: '#/definitions/schema.Table'
+      virtual:
+        type: boolean
+    type: object
+  schema.SchemaInferences:
+    properties:
+      business_insights:
+        items:
+          $ref: '#/definitions/schema.BusinessInsight'
+        type: array
+      foreign_keys:
+        items:
+          $ref: '#/definitions/schema.InferredForeignKey'
+        type: array
+    type: object
+  schema.Table:
+    properties:
+      columns:
+        items:
+          $ref: '#/definitions/github_com_k1LoW_tbls_schema.Column'
+        type: array
+      comment:
+        type: string
+      constraints:
+        items:
+          $ref: '#/definitions/schema.Constraint'
+        type: array
+      def:
+        type: string
+      external:
+        type: boolean
+      indexes:
+        items:
+          $ref: '#/definitions/schema.Index'
+        type: array
+      labels:
+        items:
+          $ref: '#/definitions/schema.Label'
+        type: array
+      name:
+        type: string
+      referencedTables:
+        items:
+          $ref: '#/definitions/schema.Table'
+        type: array
+      stats:
+        $ref: '#/definitions/schema.TableStats'
+      triggers:
+        items:
+          $ref: '#/definitions/schema.Trigger'
+        type: array
+      type:
+        type: string
+      viewpoints:
+        items:
+          $ref: '#/definitions/schema.TableViewpoint'
+        type: array
+    type: object
+  schema.TableStats:
+    properties:
+      data_bytes:
+        type: integer
+      index_bytes:
+        type: integer
+      row_count:
+        type: integer
+    type: object
+  schema.TableViewpoint:
+    properties:
+      desc:
+        type: string
+      index:
+        type: integer
+      name:
+        type: string
+    type: object
+  schema.TopValue:
+    properties:
+      count:
+        type: integer
+      value:
+        type: string
+    type: object
+  schema.Trigger:
+    properties:
+      comment:
+        type: string
+      def:
+        type: string
+      name:
+        type: string
+    type: object
+  schema.Viewpoint:
+    properties:
+      desc:
+        type: string
+      distance:
+        type: integer
+      groups:
+        items:
+          $ref: '#/definitions/schema.ViewpointGroup'
+        type: array
+      labels:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      tables:
+        items:
+          type: string
+        type: array
+    type: object
+  schema.ViewpointGroup:
+    properties:
+      color:
+        type: string
+      desc:
+        type: string
+      labels:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      tables:
+        items:
+          type: string
+        type: array
+    type: object
+  sql.NullFloat64:
+    properties:
+      float64:
+        format: float64
+        type: number
+      valid:
+        description: Valid is true if Float64 is not NULL
+        type: boolean
+    type: object
+  sql.NullInt32:
+    properties:
+      int32:
+        format: int32
+        type: integer
+      valid:
+        description: Valid is true if Int32 is not NULL
+        type: boolean
+    type: object
+  sql.NullString:
+    properties:
+      string:
+        type: string
+      valid:
+        description: Valid is true if String is not NULL
+        type: boolean
+    type: object
+  stats.Stage:
+    enum:
+    - analyzing
+    - collecting_stats
+    - inferring
+    - completed
+    - failed
+    - cancelled
+    type: string
+    x-enum-varnames:
+    - StageAnalyzing
+    - StageCollectingStats
+    - StageInferring
+    - StageCompleted
+    - StageFailed
+    - StageCancelled
+host: localhost:8080
+info:
+  contact: {}
+  description: |-
+    REST API for tbls database schema analysis.
+
+    `tbls serve` starts an HTTP server that provides endpoints to analyze databases
+    and return schema information as JSON. Supports asynchronous task execution with
+    progress polling, checkpoint/resume, and task cancellation.
+  license:
+    name: MIT
+    url: https://github.com/k1LoW/tbls/blob/main/LICENSE
+  title: tbls serve API
+  version: "1.0"
+paths:
+  /schema:
+    post:
+      consumes:
+      - application/json
+      description: Analyze a database asynchronously. Returns a task ID immediately
+        for progress polling.
+      parameters:
+      - description: Schema analysis request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd.SchemaRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Task accepted
+          schema:
+            $ref: '#/definitions/cmd.TaskAcceptedResponse'
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/cmd.ErrorResponse'
+      summary: Submit schema analysis task
+      tags:
+      - Schema
+  /schema/{task_id}:
+    delete:
+      description: Cancel a running task. The current progress is saved to a checkpoint
+        file.
+      parameters:
+      - description: Task ID
+        format: uuid
+        in: path
+        name: task_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Task cancelled
+          schema:
+            $ref: '#/definitions/cmd.TaskCancelledResponse'
+        "400":
+          description: Task is not running
+          schema:
+            $ref: '#/definitions/cmd.TaskNotRunningError'
+        "404":
+          description: Task not found
+          schema:
+            $ref: '#/definitions/cmd.ErrorResponse'
+      summary: Cancel task
+      tags:
+      - Schema
+  /schema/status/{task_id}:
+    get:
+      description: Get the status and progress of a schema analysis task.
+      parameters:
+      - description: Task ID
+        format: uuid
+        in: path
+        name: task_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Task status
+          schema:
+            $ref: '#/definitions/cmd.TaskStatusResponse'
+        "404":
+          description: Task not found
+          schema:
+            $ref: '#/definitions/cmd.ErrorResponse'
+      summary: Get task status
+      tags:
+      - Schema
+swagger: "2.0"
+tags:
+- description: Database schema analysis operations
+  name: Schema

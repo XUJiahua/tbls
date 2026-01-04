@@ -2,6 +2,8 @@
 
 `tbls serve` starts an HTTP server that provides a `/schema` endpoint to analyze databases and return schema information as JSON.
 
+> **OpenAPI/Swagger**: The server provides Swagger UI at `/swagger/index.html`. The OpenAPI specification is generated from code annotations using [swaggo/swag](https://github.com/swaggo/swag). See [swagger.yaml](swagger.yaml) for the generated spec.
+
 ## Usage
 
 ```bash

@@ -28,8 +28,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/k1LoW/tbls/config"
 	"github.com/k1LoW/tbls/datasource"
+	"github.com/k1LoW/tbls/schema"
 	"github.com/k1LoW/tbls/stats"
 	"github.com/spf13/cobra"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+
+	_ "github.com/k1LoW/tbls/docs" // swagger docs
 )
 
 var (
@@ -39,6 +44,23 @@ var (
 // taskStore holds all task states
 var taskStore = stats.NewTaskStore()
 
+// @title tbls serve API
+// @version 1.0
+// @description REST API for tbls database schema analysis.
+// @description
+// @description `tbls serve` starts an HTTP server that provides endpoints to analyze databases
+// @description and return schema information as JSON. Supports asynchronous task execution with
+// @description progress polling, checkpoint/resume, and task cancellation.
+
+// @license.name MIT
+// @license.url https://github.com/k1LoW/tbls/blob/main/LICENSE
+
+// @host localhost:8080
+// @BasePath /
+
+// @tag.name Schema
+// @tag.description Database schema analysis operations
+
 // serveCmd represents the serve command.
 var serveCmd = &cobra.Command{
 	Use:   "serve",
@@ -47,6 +69,9 @@ var serveCmd = &cobra.Command{
 	RunE: func(_ *cobra.Command, _ []string) error {
 		gin.SetMode(gin.ReleaseMode)
 		r := gin.Default()
+
+		// Swagger UI
+		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 		// Async schema analysis
 		r.POST("/schema", handleSchemaAsync)
@@ -61,33 +86,35 @@ var serveCmd = &cobra.Command{
 	},
 }
 
-// schemaRequest is the request body for /schema endpoint
-type schemaRequest struct {
-	config.Config
-	Force bool `json:"force,omitempty"` // Force stats collection, ignoring checkpoint
-}
-
+// handleSchemaAsync godoc
+// @Summary Submit schema analysis task
+// @Description Analyze a database asynchronously. Returns a task ID immediately for progress polling.
+// @Tags Schema
+// @Accept json
+// @Produce json
+// @Param request body SchemaRequest true "Schema analysis request"
+// @Success 202 {object} TaskAcceptedResponse "Task accepted"
+// @Failure 400 {object} ErrorResponse "Bad request"
+// @Router /schema [post]
 func handleSchemaAsync(c *gin.Context) {
-	var req schemaRequest
+	var req SchemaRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: err.Error(),
 		})
 		return
 	}
 
 	// Validate DSN is required
 	if req.DSN.URL == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "dsn.url is required",
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: "dsn.url is required",
 		})
 		return
 	}
 
-	// Apply force flag
-	if req.Force {
-		req.Stats.Checkpoint.Force = true
-	}
+	// Convert to config
+	cfg := req.toConfig()
 
 	// Generate task ID
 	taskID := uuid.New().String()
@@ -102,11 +129,11 @@ func handleSchemaAsync(c *gin.Context) {
 	taskStore.Set(taskID, taskStatus)
 
 	// Start async processing
-	go processSchemaAsync(taskID, req.Config)
+	go processSchemaAsync(taskID, cfg)
 
-	c.JSON(http.StatusAccepted, gin.H{
-		"task_id": taskID,
-		"status":  "pending",
+	c.JSON(http.StatusAccepted, TaskAcceptedResponse{
+		TaskID: taskID,
+		Status: "pending",
 	})
 }
 
@@ -149,72 +176,91 @@ func processSchemaAsync(taskID string, cfg config.Config) {
 	})
 }
 
+// handleSchemaStatus godoc
+// @Summary Get task status
+// @Description Get the status and progress of a schema analysis task.
+// @Tags Schema
+// @Produce json
+// @Param task_id path string true "Task ID" format(uuid)
+// @Success 200 {object} TaskStatusResponse "Task status"
+// @Failure 404 {object} ErrorResponse "Task not found"
+// @Router /schema/status/{task_id} [get]
 func handleSchemaStatus(c *gin.Context) {
 	taskID := c.Param("task_id")
 
 	task, ok := taskStore.Get(taskID)
 	if !ok {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "task not found",
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error: "task not found",
 		})
 		return
 	}
 
-	response := gin.H{
-		"task_id": task.TaskID,
-		"status":  task.Status,
-		"stage":   task.Stage,
+	response := TaskStatusResponse{
+		TaskID: task.TaskID,
+		Status: task.Status,
+		Stage:  task.Stage,
 	}
 
 	if task.Progress != nil {
-		response["progress"] = gin.H{
-			"current_table":     task.Progress.CurrentTable,
-			"current_column":    task.Progress.CurrentColumn,
-			"completed_columns": task.Progress.CompletedColumns,
-			"total_columns":     task.Progress.TotalColumns,
+		response.Progress = &ProgressInfo{
+			CurrentTable:     task.Progress.CurrentTable,
+			CurrentColumn:    task.Progress.CurrentColumn,
+			CompletedColumns: task.Progress.CompletedColumns,
+			TotalColumns:     task.Progress.TotalColumns,
 		}
 	}
 
-	if task.ResumedFromCheckpoint {
-		response["resumed_from_checkpoint"] = true
-	}
+	response.ResumedFromCheckpoint = task.ResumedFromCheckpoint
 
 	if !task.StartedAt.IsZero() {
-		response["started_at"] = task.StartedAt
+		response.StartedAt = task.StartedAt
 	}
 
 	if !task.CompletedAt.IsZero() {
-		response["completed_at"] = task.CompletedAt
+		response.CompletedAt = task.CompletedAt
 	}
 
 	if task.Error != "" {
-		response["error"] = task.Error
+		response.Error = task.Error
 	}
 
 	if task.Result != nil && task.Status == "completed" {
-		response["result"] = task.Result
+		if result, ok := task.Result.(*schema.Schema); ok {
+			response.Result = result
+		}
 	}
 
 	c.JSON(http.StatusOK, response)
 }
 
+// handleSchemaCancel godoc
+// @Summary Cancel task
+// @Description Cancel a running task. The current progress is saved to a checkpoint file.
+// @Tags Schema
+// @Produce json
+// @Param task_id path string true "Task ID" format(uuid)
+// @Success 200 {object} TaskCancelledResponse "Task cancelled"
+// @Failure 400 {object} TaskNotRunningError "Task is not running"
+// @Failure 404 {object} ErrorResponse "Task not found"
+// @Router /schema/{task_id} [delete]
 func handleSchemaCancel(c *gin.Context) {
 	taskID := c.Param("task_id")
 
 	task, ok := taskStore.Get(taskID)
 	if !ok {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "task not found",
+		c.JSON(http.StatusNotFound, ErrorResponse{
+			Error: "task not found",
 		})
 		return
 	}
 
 	// Check if task is still running
 	if task.Status != "running" && task.Status != "pending" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "task is not running",
-			"status":  task.Status,
-			"task_id": taskID,
+		c.JSON(http.StatusBadRequest, TaskNotRunningError{
+			Error:  "task is not running",
+			Status: task.Status,
+			TaskID: taskID,
 		})
 		return
 	}
@@ -229,10 +275,10 @@ func handleSchemaCancel(c *gin.Context) {
 		t.CompletedAt = time.Now()
 	})
 
-	c.JSON(http.StatusOK, gin.H{
-		"task_id":          taskID,
-		"status":           "cancelled",
-		"checkpoint_saved": true,
+	c.JSON(http.StatusOK, TaskCancelledResponse{
+		TaskID:          taskID,
+		Status:          "cancelled",
+		CheckpointSaved: true,
 	})
 }
 
