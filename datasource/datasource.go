@@ -180,6 +180,22 @@ func AnalyzeWithStats(dsn config.DSN, cfg *config.Config) (*schema.Schema, error
 			// TODO: consider adding proper logging
 			_ = err
 		}
+
+		// Run inference if enabled
+		if cfg.Stats.Inference.Enabled {
+			opts := &schema.InferenceOptions{
+				EnumMaxCardinality:      cfg.Stats.Inference.EnumMaxCardinality,
+				EnumMaxDistinct:         cfg.Stats.Inference.EnumMaxDistinct,
+				DictMaxCardinality:      cfg.Stats.Inference.DictMaxCardinality,
+				DictMaxDistinct:         cfg.Stats.Inference.DictMaxDistinct,
+				ForeignKeyMinConfidence: cfg.Stats.Inference.ForeignKeyMinConfidence,
+			}
+			inferrer := schema.NewInferrer(opts)
+			if err := inferrer.RunInference(s); err != nil {
+				// Log error but don't fail - inference is optional
+				_ = err
+			}
+		}
 	}
 
 	return s, nil

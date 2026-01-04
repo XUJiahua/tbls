@@ -129,13 +129,50 @@ type DetectVirtualRelations struct {
 
 // StatsConfig holds configuration for statistics collection
 type StatsConfig struct {
-	Enabled             bool     `yaml:"enabled" json:"enabled"`
-	Include             []string `yaml:"include,omitempty" json:"include,omitempty"`
-	Exclude             []string `yaml:"exclude,omitempty" json:"exclude,omitempty"`
-	TopN                int      `yaml:"topN,omitempty" json:"topN,omitempty"`
-	SampleSize          int      `yaml:"sampleSize,omitempty" json:"sampleSize,omitempty"`
-	LargeTableThreshold int64    `yaml:"largeTableThreshold,omitempty" json:"largeTableThreshold,omitempty"`
-	RecentDays          int      `yaml:"recentDays,omitempty" json:"recentDays,omitempty"`
+	Enabled             bool            `yaml:"enabled" json:"enabled"`
+	Include             []string        `yaml:"include,omitempty" json:"include,omitempty"`
+	Exclude             []string        `yaml:"exclude,omitempty" json:"exclude,omitempty"`
+	TopN                int             `yaml:"topN,omitempty" json:"topN,omitempty"`
+	SampleSize          int             `yaml:"sampleSize,omitempty" json:"sampleSize,omitempty"`
+	LargeTableThreshold int64           `yaml:"largeTableThreshold,omitempty" json:"largeTableThreshold,omitempty"`
+	RecentDays          int             `yaml:"recentDays,omitempty" json:"recentDays,omitempty"`
+	Inference           InferenceConfig `yaml:"inference,omitempty" json:"inference,omitempty"`
+}
+
+// InferenceConfig holds configuration for stats-based inference
+type InferenceConfig struct {
+	Enabled                 bool    `yaml:"enabled" json:"enabled"`
+	EnumMaxCardinality      float64 `yaml:"enumMaxCardinality,omitempty" json:"enumMaxCardinality,omitempty"`
+	EnumMaxDistinct         int     `yaml:"enumMaxDistinct,omitempty" json:"enumMaxDistinct,omitempty"`
+	DictMaxCardinality      float64 `yaml:"dictMaxCardinality,omitempty" json:"dictMaxCardinality,omitempty"`
+	DictMaxDistinct         int     `yaml:"dictMaxDistinct,omitempty" json:"dictMaxDistinct,omitempty"`
+	ForeignKeyMinConfidence float64 `yaml:"foreignKeyMinConfidence,omitempty" json:"foreignKeyMinConfidence,omitempty"`
+}
+
+// UnmarshalYAML supports both `inference: true` and `inference: {enabled: true, ...}`
+func (c *InferenceConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// Try boolean first
+	var boolVal bool
+	if err := unmarshal(&boolVal); err == nil {
+		c.Enabled = boolVal
+		return nil
+	}
+
+	// Try object
+	type plain InferenceConfig
+	return unmarshal((*plain)(c))
+}
+
+// DefaultInferenceConfig returns default inference configuration
+func DefaultInferenceConfig() InferenceConfig {
+	return InferenceConfig{
+		Enabled:                 false,
+		EnumMaxCardinality:      0.01,
+		EnumMaxDistinct:         20,
+		DictMaxCardinality:      0.05,
+		DictMaxDistinct:         100,
+		ForeignKeyMinConfidence: 0.7,
+	}
 }
 
 // Option function change Config.
@@ -314,6 +351,26 @@ func (c *Config) setDefault() error {
 	}
 	if c.Stats.RecentDays == 0 {
 		c.Stats.RecentDays = 30
+	}
+
+	// Inference defaults (only apply when inference is enabled)
+	if c.Stats.Inference.Enabled {
+		defaults := DefaultInferenceConfig()
+		if c.Stats.Inference.EnumMaxCardinality == 0 {
+			c.Stats.Inference.EnumMaxCardinality = defaults.EnumMaxCardinality
+		}
+		if c.Stats.Inference.EnumMaxDistinct == 0 {
+			c.Stats.Inference.EnumMaxDistinct = defaults.EnumMaxDistinct
+		}
+		if c.Stats.Inference.DictMaxCardinality == 0 {
+			c.Stats.Inference.DictMaxCardinality = defaults.DictMaxCardinality
+		}
+		if c.Stats.Inference.DictMaxDistinct == 0 {
+			c.Stats.Inference.DictMaxDistinct = defaults.DictMaxDistinct
+		}
+		if c.Stats.Inference.ForeignKeyMinConfidence == 0 {
+			c.Stats.Inference.ForeignKeyMinConfidence = defaults.ForeignKeyMinConfidence
+		}
 	}
 
 	return nil

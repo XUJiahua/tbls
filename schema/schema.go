@@ -67,6 +67,55 @@ type TableStats struct {
 	IndexBytes int64 `json:"index_bytes,omitempty"`
 }
 
+// DistributionItem represents a value with its count and percentage
+type DistributionItem struct {
+	Value   string  `json:"value"`
+	Count   int64   `json:"count"`
+	Percent float64 `json:"percent"`
+}
+
+// ColumnInferences holds column-level inferences derived from statistics
+type ColumnInferences struct {
+	// Primary key / unique identifier detection
+	IsPrimaryKey bool `json:"is_primary_key,omitempty"`
+	IsUnique     bool `json:"is_unique,omitempty"`
+
+	// Enum / dictionary column detection
+	IsEnum      bool    `json:"is_enum,omitempty"`
+	EnumType    string  `json:"enum_type,omitempty"` // "enum" | "dictionary" | "high_cardinality"
+	Cardinality float64 `json:"cardinality,omitempty"`
+
+	// Data quality
+	HasNulls   bool `json:"has_nulls,omitempty"`
+	IsComplete bool `json:"is_complete,omitempty"`
+
+	// Data distribution (derived from top_values)
+	Distribution []DistributionItem `json:"distribution,omitempty"`
+}
+
+// InferredForeignKey represents a foreign key relationship inferred from statistics
+type InferredForeignKey struct {
+	SourceTable  string  `json:"source_table"`
+	SourceColumn string  `json:"source_column"`
+	TargetTable  string  `json:"target_table"`
+	TargetColumn string  `json:"target_column"`
+	Confidence   float64 `json:"confidence"`
+}
+
+// BusinessInsight represents a business-level insight derived from statistics
+type BusinessInsight struct {
+	Type        string   `json:"type"`
+	Description string   `json:"description"`
+	Value       float64  `json:"value"`
+	Tables      []string `json:"tables"`
+}
+
+// SchemaInferences holds schema-level inferences (cross-table)
+type SchemaInferences struct {
+	ForeignKeys      []InferredForeignKey `json:"foreign_keys,omitempty"`
+	BusinessInsights []BusinessInsight    `json:"business_insights,omitempty"`
+}
+
 func (labels Labels) Merge(name string) Labels {
 	if labels.Contains(name) {
 		return labels
@@ -160,7 +209,8 @@ type Column struct {
 	PK              bool
 	FK              bool
 	HideForER       bool
-	Stats           *ColumnStats `json:"stats,omitempty"`
+	Stats           *ColumnStats      `json:"stats,omitempty"`
+	Inferences      *ColumnInferences `json:"inferences,omitempty"`
 }
 
 type TableViewpoint struct {
@@ -227,15 +277,16 @@ type Driver struct {
 
 // Schema is the struct for database schema.
 type Schema struct {
-	Name       string      `json:"name,omitempty"`
-	Desc       string      `json:"desc,omitempty"`
-	Tables     []*Table    `json:"tables"`
-	Relations  []*Relation `json:"relations,omitempty"`
-	Functions  []*Function `json:"functions,omitempty"`
-	Enums      []*Enum     `json:"enums,omitempty"`
-	Driver     *Driver     `json:"driver,omitempty"`
-	Labels     Labels      `json:"labels,omitempty"`
-	Viewpoints Viewpoints  `json:"viewpoints,omitempty"`
+	Name       string            `json:"name,omitempty"`
+	Desc       string            `json:"desc,omitempty"`
+	Tables     []*Table          `json:"tables"`
+	Relations  []*Relation       `json:"relations,omitempty"`
+	Functions  []*Function       `json:"functions,omitempty"`
+	Enums      []*Enum           `json:"enums,omitempty"`
+	Driver     *Driver           `json:"driver,omitempty"`
+	Labels     Labels            `json:"labels,omitempty"`
+	Viewpoints Viewpoints        `json:"viewpoints,omitempty"`
+	Inferences *SchemaInferences `json:"inferences,omitempty"`
 }
 
 func (s *Schema) NormalizeTableName(name string) string {

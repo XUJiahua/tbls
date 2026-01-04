@@ -704,3 +704,119 @@ func newTestSchemaViaJSON(t *testing.T) *schema.Schema {
 	}
 	return s
 }
+
+func TestInferenceConfigParsing(t *testing.T) {
+	tests := []struct {
+		name           string
+		yaml           string
+		wantEnabled    bool
+		wantEnumMaxCard float64
+	}{
+		{
+			name: "inference as boolean true",
+			yaml: `
+stats:
+  enabled: true
+  inference: true
+`,
+			wantEnabled:    true,
+			wantEnumMaxCard: 0.01, // default value after setDefault
+		},
+		{
+			name: "inference as boolean false",
+			yaml: `
+stats:
+  enabled: true
+  inference: false
+`,
+			wantEnabled:    false,
+			wantEnumMaxCard: 0, // not set since not enabled
+		},
+		{
+			name: "inference as object",
+			yaml: `
+stats:
+  enabled: true
+  inference:
+    enabled: true
+    enumMaxCardinality: 0.02
+`,
+			wantEnabled:    true,
+			wantEnumMaxCard: 0.02,
+		},
+		{
+			name: "inference as object with custom values",
+			yaml: `
+stats:
+  enabled: true
+  inference:
+    enabled: true
+    enumMaxCardinality: 0.03
+    enumMaxDistinct: 30
+    dictMaxCardinality: 0.1
+    dictMaxDistinct: 200
+    foreignKeyMinConfidence: 0.8
+`,
+			wantEnabled:    true,
+			wantEnumMaxCard: 0.03,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := New()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := c.LoadConfig([]byte(tt.yaml)); err != nil {
+				t.Fatal(err)
+			}
+			if err := c.setDefault(); err != nil {
+				t.Fatal(err)
+			}
+
+			if c.Stats.Inference.Enabled != tt.wantEnabled {
+				t.Errorf("Inference.Enabled = %v, want %v", c.Stats.Inference.Enabled, tt.wantEnabled)
+			}
+			if c.Stats.Inference.EnumMaxCardinality != tt.wantEnumMaxCard {
+				t.Errorf("Inference.EnumMaxCardinality = %v, want %v", c.Stats.Inference.EnumMaxCardinality, tt.wantEnumMaxCard)
+			}
+		})
+	}
+}
+
+func TestInferenceConfigDefaults(t *testing.T) {
+	yaml := `
+stats:
+  enabled: true
+  inference: true
+`
+	c, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.LoadConfig([]byte(yaml)); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.setDefault(); err != nil {
+		t.Fatal(err)
+	}
+
+	defaults := DefaultInferenceConfig()
+
+	if c.Stats.Inference.EnumMaxCardinality != defaults.EnumMaxCardinality {
+		t.Errorf("EnumMaxCardinality = %v, want %v", c.Stats.Inference.EnumMaxCardinality, defaults.EnumMaxCardinality)
+	}
+	if c.Stats.Inference.EnumMaxDistinct != defaults.EnumMaxDistinct {
+		t.Errorf("EnumMaxDistinct = %v, want %v", c.Stats.Inference.EnumMaxDistinct, defaults.EnumMaxDistinct)
+	}
+	if c.Stats.Inference.DictMaxCardinality != defaults.DictMaxCardinality {
+		t.Errorf("DictMaxCardinality = %v, want %v", c.Stats.Inference.DictMaxCardinality, defaults.DictMaxCardinality)
+	}
+	if c.Stats.Inference.DictMaxDistinct != defaults.DictMaxDistinct {
+		t.Errorf("DictMaxDistinct = %v, want %v", c.Stats.Inference.DictMaxDistinct, defaults.DictMaxDistinct)
+	}
+	if c.Stats.Inference.ForeignKeyMinConfidence != defaults.ForeignKeyMinConfidence {
+		t.Errorf("ForeignKeyMinConfidence = %v, want %v", c.Stats.Inference.ForeignKeyMinConfidence, defaults.ForeignKeyMinConfidence)
+	}
+}
