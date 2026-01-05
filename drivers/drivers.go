@@ -49,6 +49,16 @@ type StatsConfig struct {
 	// Progress and checkpoint support (optional)
 	Progress   ProgressReporter
 	Checkpoint CheckpointUpdater
+
+	// Date column configuration for partition filtering
+	DateColumn string
+	Tables     map[string]TableStatsConfig
+}
+
+// TableStatsConfig holds per-table stats configuration
+type TableStatsConfig struct {
+	DateColumn string
+	Skip       bool
 }
 
 // Option is the type for change Config.

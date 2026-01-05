@@ -2,42 +2,13 @@ package clickhouse
 
 import (
 	"fmt"
-	"os"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/k1LoW/tbls/drivers"
 	"github.com/k1LoW/tbls/schema"
+	"github.com/sirupsen/logrus"
 )
-
-// isDebug checks if debug mode is enabled via DEBUG or TBLS_DEBUG environment variable
-func isDebug() bool {
-	for _, key := range []string{"DEBUG", "TBLS_DEBUG"} {
-		env := os.Getenv(key)
-		if env != "" {
-			debug, _ := strconv.ParseBool(env)
-			if debug {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// logDebug prints debug message if debug mode is enabled
-func logDebug(format string, args ...interface{}) {
-	if isDebug() {
-		fmt.Printf("[DEBUG] "+format+"\n", args...)
-	}
-}
-
-// logSQL prints SQL query if debug mode is enabled
-func logSQL(query string) {
-	if isDebug() {
-		fmt.Printf("[SQL] %s\n", strings.TrimSpace(query))
-	}
-}
 
 // numericTypeRe matches ClickHouse numeric types
 var numericTypeRe = regexp.MustCompile(`(?i)^(U?Int\d+|Float\d+|Decimal.*|Nullable\((U?Int\d+|Float\d+|Decimal.*)\))`)
@@ -58,61 +29,98 @@ var ErrCancelled = fmt.Errorf("operation cancelled")
 
 // CollectStats collects statistics for all tables in the schema
 func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) error {
-	logDebug("Starting stats collection for database: %s", s.Name)
-	logDebug("Include filter: %v", cfg.Include)
-	logDebug("Exclude filter: %v", cfg.Exclude)
+	log.WithFields(logrus.Fields{
+		"database": s.Name,
+		"include":  cfg.Include,
+		"exclude":  cfg.Exclude,
+	}).Debug("starting stats collection")
 
 	// Get table stats from system.tables
-	logDebug("Fetching table stats from system.tables...")
 	tableStats, err := ch.getTableStats(s.Name)
 	if err != nil {
 		return err
 	}
-	logDebug("Found %d tables in system.tables", len(tableStats))
+	log.WithField("count", len(tableStats)).Debug("fetched table stats from system.tables")
 
 	// Calculate total columns for progress reporting
 	totalColumns := 0
 	totalTables := 0
 	for _, table := range s.Tables {
+		// Check table-level skip config
+		if cfg.Tables != nil {
+			if tableConfig, ok := cfg.Tables[table.Name]; ok && tableConfig.Skip {
+				continue
+			}
+		}
 		if shouldCollectStats(table.Name, cfg.Include, cfg.Exclude) {
 			totalTables++
 			totalColumns += len(table.Columns)
 		}
 	}
-	logDebug("Will collect stats for %d tables, %d columns total", totalTables, totalColumns)
+	log.WithFields(logrus.Fields{
+		"tables":  totalTables,
+		"columns": totalColumns,
+	}).Debug("will collect stats")
 
 	completedColumns := 0
 	completedTables := 0
 
 	for _, table := range s.Tables {
+		// Check if this table should be skipped via config
+		if cfg.Tables != nil {
+			if tableConfig, ok := cfg.Tables[table.Name]; ok && tableConfig.Skip {
+				log.WithField("table", table.Name).Debug("skipping table (configured)")
+				continue
+			}
+		}
+
 		// Check if this table should have stats collected
 		if !shouldCollectStats(table.Name, cfg.Include, cfg.Exclude) {
-			logDebug("Skipping table %s (not in include list or in exclude list)", table.Name)
+			log.WithField("table", table.Name).Debug("skipping table (not in include list or in exclude list)")
 			continue
 		}
 
 		// Skip if table is already completed (from checkpoint)
 		if cfg.Checkpoint != nil && cfg.Checkpoint.IsTableCompleted(table.Name) {
-			logDebug("Skipping table %s (already completed from checkpoint)", table.Name)
+			log.WithField("table", table.Name).Debug("skipping table (already completed from checkpoint)")
 			completedColumns += len(table.Columns)
 			completedTables++
 			continue
 		}
 
 		completedTables++
-		logDebug("Processing table [%d/%d]: %s (%d columns)", completedTables, totalTables, table.Name, len(table.Columns))
+		log.WithFields(logrus.Fields{
+			"table":    table.Name,
+			"progress": fmt.Sprintf("%d/%d", completedTables, totalTables),
+			"columns":  len(table.Columns),
+		}).Debug("processing table")
 
 		// Set table-level stats
 		if stats, ok := tableStats[table.Name]; ok {
 			table.Stats = stats
-			logDebug("  Table %s: %d rows, %d bytes", table.Name, stats.RowCount, stats.DataBytes)
+			log.WithFields(logrus.Fields{
+				"table":      table.Name,
+				"row_count":  stats.RowCount,
+				"data_bytes": stats.DataBytes,
+			}).Debug("table stats")
 		}
 
-		// Determine sampling strategy
+		// Get date column for filtering (auto-detect or from config)
+		dateCol := ch.getDateColumnForTable(s.Name, table.Name, cfg)
+
+		// Determine if we should use date filtering
+		// For views (row_count=0), always use date filter if available
+		// For tables, only use if large
 		isLargeTable := table.Stats != nil && table.Stats.RowCount > cfg.LargeTableThreshold
-		partitionKey := ch.getPartitionKey(s.Name, table.Name)
-		if isLargeTable {
-			logDebug("  Large table detected, will use sampling (partition key: %s)", partitionKey)
+		isViewWithNoRows := table.Stats == nil || table.Stats.RowCount == 0
+		useDateFilter := dateCol != "" && (isViewWithNoRows || isLargeTable)
+
+		if useDateFilter {
+			log.WithFields(logrus.Fields{
+				"table":       table.Name,
+				"date_column": dateCol,
+				"recent_days": cfg.RecentDays,
+			}).Debug("using date filter for stats collection")
 		}
 
 		// Collect column stats
@@ -136,11 +144,14 @@ func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) er
 				cfg.Progress.ReportColumn(table.Name, col.Name, completedColumns, totalColumns)
 			}
 
-			logDebug("  Column [%d/%d] %s.%s (%s) - progress: %d/%d (%.1f%%)",
-				colIdx+1, len(table.Columns), table.Name, col.Name, col.Type,
-				completedColumns, totalColumns, float64(completedColumns)/float64(totalColumns)*100)
+			log.WithFields(logrus.Fields{
+				"table":    table.Name,
+				"column":   col.Name,
+				"type":     col.Type,
+				"progress": fmt.Sprintf("%d/%d (%.1f%%)", colIdx+1, len(table.Columns), float64(completedColumns)/float64(totalColumns)*100),
+			}).Debug("collecting column stats")
 
-			colStats, err := ch.getColumnStats(s.Name, table.Name, col.Name, col.Type, isLargeTable, partitionKey, cfg)
+			colStats, err := ch.getColumnStats(s.Name, table.Name, col.Name, col.Type, useDateFilter, dateCol, cfg)
 			if err != nil {
 				// Save checkpoint and return error
 				if cfg.Checkpoint != nil {
@@ -157,7 +168,7 @@ func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) er
 			}
 		}
 
-		logDebug("Completed table: %s", table.Name)
+		log.WithField("table", table.Name).Debug("completed table")
 
 		// Mark table as completed
 		if cfg.Checkpoint != nil {
@@ -165,7 +176,10 @@ func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) er
 		}
 	}
 
-	logDebug("Stats collection completed: %d tables, %d columns", completedTables, completedColumns)
+	log.WithFields(logrus.Fields{
+		"tables":  completedTables,
+		"columns": completedColumns,
+	}).Debug("stats collection completed")
 	return nil
 }
 
@@ -213,7 +227,7 @@ func (ch *ClickHouse) getTableStats(dbName string) (map[string]*schema.TableStat
 		FROM system.tables
 		WHERE database = ?
 	`
-	logSQL(fmt.Sprintf("%s -- args: [%s]", query, dbName))
+	log.WithField("query", strings.TrimSpace(query)).Debug("executing SQL")
 	rows, err := ch.db.Query(query, dbName)
 	if err != nil {
 		return nil, err
@@ -240,19 +254,6 @@ func (ch *ClickHouse) getTableStats(dbName string) (map[string]*schema.TableStat
 	return result, nil
 }
 
-func (ch *ClickHouse) getPartitionKey(dbName, tableName string) string {
-	var partitionKey string
-	query := `
-		SELECT partition_key
-		FROM system.tables
-		WHERE database = ? AND name = ?
-	`
-	logSQL(fmt.Sprintf("%s -- args: [%s, %s]", query, dbName, tableName))
-	row := ch.db.QueryRow(query, dbName, tableName)
-	_ = row.Scan(&partitionKey)
-	return partitionKey
-}
-
 // extractDateColumn attempts to extract date column from partition key expression
 func extractDateColumn(partitionKey string) string {
 	// Match patterns like toYYYYMM(date), toDate(timestamp), etc.
@@ -268,19 +269,22 @@ func extractDateColumn(partitionKey string) string {
 	return ""
 }
 
-func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string, isLargeTable bool, partitionKey string, cfg drivers.StatsConfig) (*schema.ColumnStats, error) {
+func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string, useDateFilter bool, dateColumn string, cfg drivers.StatsConfig) (*schema.ColumnStats, error) {
 	stats := &schema.ColumnStats{}
 	isNumeric := numericTypeRe.MatchString(colType)
 	isDate := dateTypeRe.MatchString(colType)
 	isString := stringTypeRe.MatchString(colType)
 
-	// Build WHERE clause for large table sampling
+	// Build WHERE clause for date filtering
 	whereClause := ""
-	if isLargeTable {
-		dateCol := extractDateColumn(partitionKey)
-		if dateCol != "" {
-			whereClause = fmt.Sprintf("WHERE %s >= today() - %d", backquote(dateCol), cfg.RecentDays)
-		}
+	if useDateFilter && dateColumn != "" {
+		whereClause = fmt.Sprintf("WHERE %s >= today() - %d", backquote(dateColumn), cfg.RecentDays)
+		log.WithFields(logrus.Fields{
+			"table":        tableName,
+			"column":       colName,
+			"date_column":  dateColumn,
+			"where_clause": whereClause,
+		}).Debug("applying date filter")
 	}
 
 	// Build query based on column type
@@ -376,7 +380,7 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 		`, quotedCol, quotedCol, quotedCol, quotedDB, quotedTable, whereClause, cfg.SampleSize)
 	}
 
-	logSQL(query)
+	log.WithField("query", strings.TrimSpace(query)).Debug("executing SQL")
 	row := ch.db.QueryRow(query)
 	var (
 		rowCount      int64
@@ -444,7 +448,7 @@ func (ch *ClickHouse) getTopValues(dbName, tableName, colName, whereClause strin
 		LIMIT %d
 	`, quotedCol, quotedDB, quotedTable, whereClause, quotedCol, topN)
 
-	logSQL(query)
+	log.WithField("query", strings.TrimSpace(query)).Debug("executing SQL")
 	rows, err := ch.db.Query(query)
 	if err != nil {
 		return nil, err

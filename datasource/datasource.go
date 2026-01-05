@@ -300,6 +300,8 @@ func collectStatsWithProgress(s *schema.Schema, dsn config.DSN, cfg *config.Conf
 		RecentDays:          cfg.Stats.RecentDays,
 		Progress:            progressAdapter,
 		Checkpoint:          checkpointAdapter,
+		DateColumn:          cfg.Stats.DateColumn,
+		Tables:              convertTableStatsConfig(cfg.Stats.Tables),
 	}
 
 	var collectErr error
@@ -541,4 +543,19 @@ func AnalyzeWithExtDriver(urlstr string) (*schema.Schema, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// convertTableStatsConfig converts config.TableStatsConfig to drivers.TableStatsConfig
+func convertTableStatsConfig(tables map[string]config.TableStatsConfig) map[string]drivers.TableStatsConfig {
+	if tables == nil {
+		return nil
+	}
+	result := make(map[string]drivers.TableStatsConfig)
+	for k, v := range tables {
+		result[k] = drivers.TableStatsConfig{
+			DateColumn: v.DateColumn,
+			Skip:       v.Skip,
+		}
+	}
+	return result
 }

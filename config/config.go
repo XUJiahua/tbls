@@ -129,15 +129,23 @@ type DetectVirtualRelations struct {
 
 // StatsConfig holds configuration for statistics collection
 type StatsConfig struct {
-	Enabled             bool             `yaml:"enabled" json:"enabled"`
-	Include             []string         `yaml:"include,omitempty" json:"include,omitempty"`
-	Exclude             []string         `yaml:"exclude,omitempty" json:"exclude,omitempty"`
-	TopN                int              `yaml:"topN,omitempty" json:"topN,omitempty"`
-	SampleSize          int              `yaml:"sampleSize,omitempty" json:"sampleSize,omitempty"`
-	LargeTableThreshold int64            `yaml:"largeTableThreshold,omitempty" json:"largeTableThreshold,omitempty"`
-	RecentDays          int              `yaml:"recentDays,omitempty" json:"recentDays,omitempty"`
-	Inference           InferenceConfig  `yaml:"inference,omitempty" json:"inference,omitempty"`
-	Checkpoint          CheckpointConfig `yaml:"checkpoint,omitempty" json:"checkpoint,omitempty"`
+	Enabled             bool                        `yaml:"enabled" json:"enabled"`
+	Include             []string                    `yaml:"include,omitempty" json:"include,omitempty"`
+	Exclude             []string                    `yaml:"exclude,omitempty" json:"exclude,omitempty"`
+	TopN                int                         `yaml:"topN,omitempty" json:"topN,omitempty"`
+	SampleSize          int                         `yaml:"sampleSize,omitempty" json:"sampleSize,omitempty"`
+	LargeTableThreshold int64                       `yaml:"largeTableThreshold,omitempty" json:"largeTableThreshold,omitempty"`
+	RecentDays          int                         `yaml:"recentDays,omitempty" json:"recentDays,omitempty"`
+	Inference           InferenceConfig             `yaml:"inference,omitempty" json:"inference,omitempty"`
+	Checkpoint          CheckpointConfig            `yaml:"checkpoint,omitempty" json:"checkpoint,omitempty"`
+	DateColumn          string                      `yaml:"dateColumn,omitempty" json:"dateColumn,omitempty"`
+	Tables              map[string]TableStatsConfig `yaml:"tables,omitempty" json:"tables,omitempty"`
+}
+
+// TableStatsConfig holds per-table stats configuration
+type TableStatsConfig struct {
+	DateColumn string `yaml:"dateColumn,omitempty" json:"dateColumn,omitempty"`
+	Skip       bool   `yaml:"skip,omitempty" json:"skip,omitempty"`
 }
 
 // CheckpointConfig holds configuration for checkpoint/resume functionality
