@@ -73,6 +73,9 @@ var serveCmd = &cobra.Command{
 		// Swagger UI
 		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
+		// Scaffold endpoint - generate complete config
+		r.POST("/scaffold", handleScaffold)
+
 		// Async schema analysis
 		r.POST("/schema", handleSchemaAsync)
 
@@ -84,6 +87,161 @@ var serveCmd = &cobra.Command{
 
 		return r.Run(serveAddr)
 	},
+}
+
+// handleScaffold godoc
+// @Summary Generate scaffolded config
+// @Description Generate a complete configuration file with all parameters filled in from database schema.
+// @Description This is useful for quick start - users can modify the generated config before running schema analysis.
+// @Tags Schema
+// @Accept json
+// @Produce json
+// @Param request body ScaffoldRequest true "Scaffold request with DSN"
+// @Success 200 {object} ScaffoldResponse "Scaffolded configuration"
+// @Failure 400 {object} ErrorResponse "Bad request"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /scaffold [post]
+func handleScaffold(c *gin.Context) {
+	var req ScaffoldRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+
+	// Validate DSN is required
+	if req.DSN.URL == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: "dsn.url is required",
+		})
+		return
+	}
+
+	// Create config from request
+	cfg := &config.Config{
+		DSN: config.DSN{
+			URL:     req.DSN.URL,
+			Headers: req.DSN.Headers,
+		},
+		DocPath: config.DefaultDocPath,
+		ER: config.ER{
+			Format: config.DefaultERFormat,
+		},
+	}
+	cfg.ER.Distance = &config.DefaultERDistance
+
+	// Analyze database schema (without stats)
+	s, err := datasource.Analyze(cfg.DSN)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+
+	// Generate scaffolded config using existing logic
+	scaffolded, err := GenerateScaffoldConfig(cfg, s)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+
+	// Convert to API response format
+	apiConfig := convertToAPIScaffoldConfig(scaffolded)
+
+	c.JSON(http.StatusOK, ScaffoldResponse{
+		Config: apiConfig,
+	})
+}
+
+// convertToAPIScaffoldConfig converts internal ScaffoldConfig to API response format
+func convertToAPIScaffoldConfig(s *ScaffoldConfig) *APIScaffoldConfig {
+	// Convert tables map
+	tables := make(map[string]APIScaffoldTableStatConfig)
+	for k, v := range s.Stats.Tables {
+		tables[k] = APIScaffoldTableStatConfig{
+			DateColumn: v.DateColumn,
+			Skip:       v.Skip,
+		}
+	}
+
+	return &APIScaffoldConfig{
+		Name:        s.Name,
+		Desc:        s.Desc,
+		Labels:      s.Labels,
+		DSN:         s.DSN,
+		DocPath:     s.DocPath,
+		Format: APIScaffoldFormatConfig{
+			Adjust:                   s.Format.Adjust,
+			Sort:                     s.Format.Sort,
+			Number:                   s.Format.Number,
+			ShowOnlyFirstParagraph:   s.Format.ShowOnlyFirstParagraph,
+			HideColumnsWithoutValues: s.Format.HideColumnsWithoutValues,
+		},
+		ER: APIScaffoldERConfig{
+			Skip:            s.ER.Skip,
+			Format:          s.ER.Format,
+			Comment:         s.ER.Comment,
+			HideDef:         s.ER.HideDef,
+			ShowColumnTypes: s.ER.ShowColumnTypes,
+			Distance:        s.ER.Distance,
+			Font:            s.ER.Font,
+		},
+		Include:     s.Include,
+		Exclude:     s.Exclude,
+		Lint: APIScaffoldLintConfig{
+			RequireTableComment:      APIScaffoldLintRule{Enabled: s.Lint.RequireTableComment.Enabled, AllOrNothing: s.Lint.RequireTableComment.AllOrNothing, Exclude: s.Lint.RequireTableComment.Exclude},
+			RequireColumnComment:     APIScaffoldLintRule{Enabled: s.Lint.RequireColumnComment.Enabled, AllOrNothing: s.Lint.RequireColumnComment.AllOrNothing, Exclude: s.Lint.RequireColumnComment.Exclude},
+			RequireIndexComment:      APIScaffoldLintRule{Enabled: s.Lint.RequireIndexComment.Enabled, AllOrNothing: s.Lint.RequireIndexComment.AllOrNothing, Exclude: s.Lint.RequireIndexComment.Exclude},
+			RequireConstraintComment: APIScaffoldLintRule{Enabled: s.Lint.RequireConstraintComment.Enabled, AllOrNothing: s.Lint.RequireConstraintComment.AllOrNothing, Exclude: s.Lint.RequireConstraintComment.Exclude},
+			RequireTriggerComment:    APIScaffoldLintRule{Enabled: s.Lint.RequireTriggerComment.Enabled, AllOrNothing: s.Lint.RequireTriggerComment.AllOrNothing, Exclude: s.Lint.RequireTriggerComment.Exclude},
+			RequireTableLabels:       APIScaffoldLintRule{Enabled: s.Lint.RequireTableLabels.Enabled, AllOrNothing: s.Lint.RequireTableLabels.AllOrNothing, Exclude: s.Lint.RequireTableLabels.Exclude},
+			UnrelatedTable:           APIScaffoldLintRule{Enabled: s.Lint.UnrelatedTable.Enabled, AllOrNothing: s.Lint.UnrelatedTable.AllOrNothing, Exclude: s.Lint.UnrelatedTable.Exclude},
+			ColumnCount:              APIScaffoldLintRule{Enabled: s.Lint.ColumnCount.Enabled, Max: s.Lint.ColumnCount.Max, Exclude: s.Lint.ColumnCount.Exclude},
+			RequireColumns:           APIScaffoldLintRule{Enabled: s.Lint.RequireColumns.Enabled},
+			DuplicateRelations:       APIScaffoldLintRule{Enabled: s.Lint.DuplicateRelations.Enabled},
+			RequireForeignKeyIndex:   APIScaffoldLintRule{Enabled: s.Lint.RequireForeignKeyIndex.Enabled, Exclude: s.Lint.RequireForeignKeyIndex.Exclude},
+			LabelStyleBigQuery:       APIScaffoldLintRule{Enabled: s.Lint.LabelStyleBigQuery.Enabled, Exclude: s.Lint.LabelStyleBigQuery.Exclude},
+			RequireViewpoints:        APIScaffoldLintRule{Enabled: s.Lint.RequireViewpoints.Enabled, Exclude: s.Lint.RequireViewpoints.Exclude},
+		},
+		LintExclude: s.LintExclude,
+		Relations:   s.Relations,
+		Comments:    s.Comments,
+		DetectVirtualRelations: APIScaffoldDetectVirtualRelConfig{
+			Enabled:  s.DetectVirtualRelations.Enabled,
+			Strategy: s.DetectVirtualRelations.Strategy,
+		},
+		Stats: APIScaffoldStatsConfig{
+			Enabled:             s.Stats.Enabled,
+			Include:             s.Stats.Include,
+			Exclude:             s.Stats.Exclude,
+			TopN:                s.Stats.TopN,
+			SampleSize:          s.Stats.SampleSize,
+			LargeTableThreshold: s.Stats.LargeTableThreshold,
+			RecentDays:          s.Stats.RecentDays,
+			DateColumn:          s.Stats.DateColumn,
+			Inference: APIScaffoldInferenceConfig{
+				Enabled:                 s.Stats.Inference.Enabled,
+				EnumMaxCardinality:      s.Stats.Inference.EnumMaxCardinality,
+				EnumMaxDistinct:         s.Stats.Inference.EnumMaxDistinct,
+				DictMaxCardinality:      s.Stats.Inference.DictMaxCardinality,
+				DictMaxDistinct:         s.Stats.Inference.DictMaxDistinct,
+				ForeignKeyMinConfidence: s.Stats.Inference.ForeignKeyMinConfidence,
+			},
+			Checkpoint: APIScaffoldCheckpointConfig{
+				Enabled: s.Stats.Checkpoint.Enabled,
+				TTL:     s.Stats.Checkpoint.TTL,
+				Force:   s.Stats.Checkpoint.Force,
+			},
+			Tables: tables,
+		},
+		BaseURL:             s.BaseURL,
+		RequiredVersion:     s.RequiredVersion,
+		DisableOutputSchema: s.DisableOutputSchema,
+	}
 }
 
 // handleSchemaAsync godoc

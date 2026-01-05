@@ -180,6 +180,9 @@ swagger:
 build: swagger
 	go build -tags timetzdata -ldflags="$(BUILD_LDFLAGS)"
 
+serve: swagger
+	go run main.go serve
+
 depsdev:
 	go install github.com/linyows/git-semv/cmd/git-semv@latest
 	go install github.com/Songmu/ghch/cmd/ghch@latest

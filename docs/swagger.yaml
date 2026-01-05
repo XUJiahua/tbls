@@ -1,5 +1,221 @@
 basePath: /
 definitions:
+  cmd.APIScaffoldCheckpointConfig:
+    description: Checkpoint/resume configuration
+    properties:
+      enabled:
+        type: boolean
+      force:
+        type: boolean
+      ttl:
+        example: 24h
+        type: string
+    type: object
+  cmd.APIScaffoldConfig:
+    description: Complete configuration with all parameters and defaults
+    properties:
+      baseUrl:
+        type: string
+      comments:
+        items:
+          $ref: '#/definitions/config.AdditionalComment'
+        type: array
+      desc:
+        type: string
+      detectVirtualRelations:
+        $ref: '#/definitions/cmd.APIScaffoldDetectVirtualRelConfig'
+      disableOutputSchema:
+        type: boolean
+      docPath:
+        type: string
+      dsn:
+        $ref: '#/definitions/config.DSN'
+      er:
+        $ref: '#/definitions/cmd.APIScaffoldERConfig'
+      exclude:
+        items:
+          type: string
+        type: array
+      format:
+        $ref: '#/definitions/cmd.APIScaffoldFormatConfig'
+      include:
+        items:
+          type: string
+        type: array
+      labels:
+        items:
+          type: string
+        type: array
+      lint:
+        $ref: '#/definitions/cmd.APIScaffoldLintConfig'
+      lintExclude:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      relations:
+        items:
+          $ref: '#/definitions/config.AdditionalRelation'
+        type: array
+      requiredVersion:
+        type: string
+      stats:
+        $ref: '#/definitions/cmd.APIScaffoldStatsConfig'
+    type: object
+  cmd.APIScaffoldDetectVirtualRelConfig:
+    description: Virtual relation detection settings
+    properties:
+      enabled:
+        type: boolean
+      strategy:
+        type: string
+    type: object
+  cmd.APIScaffoldERConfig:
+    description: ER diagram generation settings
+    properties:
+      comment:
+        type: boolean
+      distance:
+        example: 1
+        type: integer
+      font:
+        type: string
+      format:
+        example: svg
+        type: string
+      hideDef:
+        type: boolean
+      showColumnTypes:
+        $ref: '#/definitions/config.ShowColumnTypes'
+      skip:
+        type: boolean
+    type: object
+  cmd.APIScaffoldFormatConfig:
+    description: Document format settings
+    properties:
+      adjust:
+        type: boolean
+      hideColumnsWithoutValues:
+        items:
+          type: string
+        type: array
+      number:
+        type: boolean
+      showOnlyFirstParagraph:
+        type: boolean
+      sort:
+        type: boolean
+    type: object
+  cmd.APIScaffoldInferenceConfig:
+    description: Stats-based inference configuration
+    properties:
+      dictMaxCardinality:
+        example: 0.05
+        type: number
+      dictMaxDistinct:
+        example: 100
+        type: integer
+      enabled:
+        type: boolean
+      enumMaxCardinality:
+        example: 0.01
+        type: number
+      enumMaxDistinct:
+        example: 20
+        type: integer
+      foreignKeyMinConfidence:
+        example: 0.7
+        type: number
+    type: object
+  cmd.APIScaffoldLintConfig:
+    description: Lint rule configuration with all rules
+    properties:
+      columnCount:
+        $ref: '#/definitions/cmd.APIScaffoldLintRule'
+      duplicateRelations:
+        $ref: '#/definitions/cmd.APIScaffoldLintRule'
+      labelStyleBigQuery:
+        $ref: '#/definitions/cmd.APIScaffoldLintRule'
+      requireColumnComment:
+        $ref: '#/definitions/cmd.APIScaffoldLintRule'
+      requireColumns:
+        $ref: '#/definitions/cmd.APIScaffoldLintRule'
+      requireConstraintComment:
+        $ref: '#/definitions/cmd.APIScaffoldLintRule'
+      requireForeignKeyIndex:
+        $ref: '#/definitions/cmd.APIScaffoldLintRule'
+      requireIndexComment:
+        $ref: '#/definitions/cmd.APIScaffoldLintRule'
+      requireTableComment:
+        $ref: '#/definitions/cmd.APIScaffoldLintRule'
+      requireTableLabels:
+        $ref: '#/definitions/cmd.APIScaffoldLintRule'
+      requireTriggerComment:
+        $ref: '#/definitions/cmd.APIScaffoldLintRule'
+      requireViewpoints:
+        $ref: '#/definitions/cmd.APIScaffoldLintRule'
+      unrelatedTable:
+        $ref: '#/definitions/cmd.APIScaffoldLintRule'
+    type: object
+  cmd.APIScaffoldLintRule:
+    description: Single lint rule configuration
+    properties:
+      allOrNothing:
+        type: boolean
+      enabled:
+        type: boolean
+      exclude:
+        items:
+          type: string
+        type: array
+      max:
+        type: integer
+    type: object
+  cmd.APIScaffoldStatsConfig:
+    description: Statistics collection configuration
+    properties:
+      checkpoint:
+        $ref: '#/definitions/cmd.APIScaffoldCheckpointConfig'
+      dateColumn:
+        type: string
+      enabled:
+        type: boolean
+      exclude:
+        items:
+          type: string
+        type: array
+      include:
+        items:
+          type: string
+        type: array
+      inference:
+        $ref: '#/definitions/cmd.APIScaffoldInferenceConfig'
+      largeTableThreshold:
+        example: 1000000
+        type: integer
+      recentDays:
+        example: 30
+        type: integer
+      sampleSize:
+        example: 10000
+        type: integer
+      tables:
+        additionalProperties:
+          $ref: '#/definitions/cmd.APIScaffoldTableStatConfig'
+        type: object
+      topN:
+        example: 10
+        type: integer
+    type: object
+  cmd.APIScaffoldTableStatConfig:
+    description: Per-table statistics configuration
+    properties:
+      dateColumn:
+        type: string
+      skip:
+        type: boolean
+    type: object
   cmd.CheckpointConfig:
     description: Checkpoint/resume configuration
     properties:
@@ -134,6 +350,25 @@ definitions:
         description: Table is the child table name
         example: posts
         type: string
+    type: object
+  cmd.ScaffoldRequest:
+    description: Request body for generating a scaffolded config
+    properties:
+      dsn:
+        allOf:
+        - $ref: '#/definitions/cmd.DSNConfig'
+        description: DSN contains the database connection configuration (required)
+    required:
+    - dsn
+    type: object
+  cmd.ScaffoldResponse:
+    description: Response containing the scaffolded configuration
+    properties:
+      config:
+        allOf:
+        - $ref: '#/definitions/cmd.APIScaffoldConfig'
+        description: Config is the generated configuration with all parameters filled
+          in
     type: object
   cmd.SchemaRequest:
     description: Request body for submitting a schema analysis task
@@ -333,6 +568,78 @@ definitions:
         example: 550e8400-e29b-41d4-a716-446655440000
         type: string
     type: object
+  config.AdditionalComment:
+    properties:
+      columnComments:
+        additionalProperties:
+          type: string
+        type: object
+      columnLabels:
+        additionalProperties:
+          items:
+            type: string
+          type: array
+        type: object
+      constraintComments:
+        additionalProperties:
+          type: string
+        type: object
+      indexComments:
+        additionalProperties:
+          type: string
+        type: object
+      labels:
+        items:
+          type: string
+        type: array
+      table:
+        type: string
+      tableComment:
+        type: string
+      triggerComments:
+        additionalProperties:
+          type: string
+        type: object
+    type: object
+  config.AdditionalRelation:
+    properties:
+      cardinality:
+        type: string
+      columns:
+        items:
+          type: string
+        type: array
+      def:
+        type: string
+      override:
+        type: boolean
+      parentCardinality:
+        type: string
+      parentColumns:
+        items:
+          type: string
+        type: array
+      parentTable:
+        type: string
+      table:
+        type: string
+    type: object
+  config.DSN:
+    properties:
+      headers:
+        additionalProperties:
+          type: string
+        type: object
+      url:
+        type: string
+    type: object
+  config.ShowColumnTypes:
+    properties:
+      primary:
+        type: boolean
+      related:
+        type: boolean
+    type: object
   dict.Dict:
     type: object
   github_com_k1LoW_tbls_schema.Column:
@@ -488,6 +795,10 @@ definitions:
         type: integer
       null_percent:
         type: number
+      queries:
+        items:
+          type: string
+        type: array
       row_count:
         type: integer
       top_values:
@@ -687,6 +998,10 @@ definitions:
         type: integer
       index_bytes:
         type: integer
+      queries:
+        items:
+          type: string
+        type: array
       row_count:
         type: integer
     type: object
@@ -810,6 +1125,38 @@ info:
   title: tbls serve API
   version: "1.0"
 paths:
+  /scaffold:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Generate a complete configuration file with all parameters filled in from database schema.
+        This is useful for quick start - users can modify the generated config before running schema analysis.
+      parameters:
+      - description: Scaffold request with DSN
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd.ScaffoldRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Scaffolded configuration
+          schema:
+            $ref: '#/definitions/cmd.ScaffoldResponse'
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/cmd.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/cmd.ErrorResponse'
+      summary: Generate scaffolded config
+      tags:
+      - Schema
   /schema:
     post:
       consumes:

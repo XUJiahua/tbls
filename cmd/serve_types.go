@@ -198,6 +198,141 @@ type ErrorResponse struct {
 	Error string `json:"error" example:"dsn.url is required"`
 }
 
+// ScaffoldRequest is the request body for POST /scaffold endpoint
+// @Description Request body for generating a scaffolded config
+type ScaffoldRequest struct {
+	// DSN contains the database connection configuration (required)
+	DSN DSNConfig `json:"dsn" binding:"required"`
+}
+
+// ScaffoldResponse is the response for scaffold endpoint
+// @Description Response containing the scaffolded configuration
+type ScaffoldResponse struct {
+	// Config is the generated configuration with all parameters filled in
+	Config *APIScaffoldConfig `json:"config"`
+}
+
+// APIScaffoldConfig is the scaffolded config structure for API response
+// @Description Complete configuration with all parameters and defaults
+type APIScaffoldConfig struct {
+	Name                   string                            `json:"name,omitempty"`
+	Desc                   string                            `json:"desc,omitempty"`
+	Labels                 []string                          `json:"labels,omitempty"`
+	DSN                    config.DSN                        `json:"dsn"`
+	DocPath                string                            `json:"docPath"`
+	Format                 APIScaffoldFormatConfig           `json:"format"`
+	ER                     APIScaffoldERConfig               `json:"er"`
+	Include                []string                          `json:"include,omitempty"`
+	Exclude                []string                          `json:"exclude,omitempty"`
+	Lint                   APIScaffoldLintConfig             `json:"lint"`
+	LintExclude            []string                          `json:"lintExclude,omitempty"`
+	Relations              []config.AdditionalRelation       `json:"relations,omitempty"`
+	Comments               []config.AdditionalComment        `json:"comments,omitempty"`
+	DetectVirtualRelations APIScaffoldDetectVirtualRelConfig `json:"detectVirtualRelations"`
+	Stats                  APIScaffoldStatsConfig            `json:"stats"`
+	BaseURL                string                            `json:"baseUrl,omitempty"`
+	RequiredVersion        string                            `json:"requiredVersion,omitempty"`
+	DisableOutputSchema    bool                              `json:"disableOutputSchema"`
+}
+
+// APIScaffoldFormatConfig represents format settings
+// @Description Document format settings
+type APIScaffoldFormatConfig struct {
+	Adjust                   bool     `json:"adjust"`
+	Sort                     bool     `json:"sort"`
+	Number                   bool     `json:"number"`
+	ShowOnlyFirstParagraph   bool     `json:"showOnlyFirstParagraph"`
+	HideColumnsWithoutValues []string `json:"hideColumnsWithoutValues,omitempty"`
+}
+
+// APIScaffoldERConfig represents ER diagram settings
+// @Description ER diagram generation settings
+type APIScaffoldERConfig struct {
+	Skip            bool                    `json:"skip"`
+	Format          string                  `json:"format" example:"svg"`
+	Comment         bool                    `json:"comment"`
+	HideDef         bool                    `json:"hideDef"`
+	ShowColumnTypes *config.ShowColumnTypes `json:"showColumnTypes,omitempty"`
+	Distance        int                     `json:"distance" example:"1"`
+	Font            string                  `json:"font,omitempty"`
+}
+
+// APIScaffoldDetectVirtualRelConfig represents virtual relation detection settings
+// @Description Virtual relation detection settings
+type APIScaffoldDetectVirtualRelConfig struct {
+	Enabled  bool   `json:"enabled"`
+	Strategy string `json:"strategy,omitempty"`
+}
+
+// APIScaffoldLintConfig represents lint rule settings
+// @Description Lint rule configuration with all rules
+type APIScaffoldLintConfig struct {
+	RequireTableComment      APIScaffoldLintRule `json:"requireTableComment"`
+	RequireColumnComment     APIScaffoldLintRule `json:"requireColumnComment"`
+	RequireIndexComment      APIScaffoldLintRule `json:"requireIndexComment"`
+	RequireConstraintComment APIScaffoldLintRule `json:"requireConstraintComment"`
+	RequireTriggerComment    APIScaffoldLintRule `json:"requireTriggerComment"`
+	RequireTableLabels       APIScaffoldLintRule `json:"requireTableLabels"`
+	UnrelatedTable           APIScaffoldLintRule `json:"unrelatedTable"`
+	ColumnCount              APIScaffoldLintRule `json:"columnCount"`
+	RequireColumns           APIScaffoldLintRule `json:"requireColumns"`
+	DuplicateRelations       APIScaffoldLintRule `json:"duplicateRelations"`
+	RequireForeignKeyIndex   APIScaffoldLintRule `json:"requireForeignKeyIndex"`
+	LabelStyleBigQuery       APIScaffoldLintRule `json:"labelStyleBigQuery"`
+	RequireViewpoints        APIScaffoldLintRule `json:"requireViewpoints"`
+}
+
+// APIScaffoldLintRule represents a single lint rule configuration
+// @Description Single lint rule configuration
+type APIScaffoldLintRule struct {
+	Enabled      bool     `json:"enabled"`
+	AllOrNothing bool     `json:"allOrNothing,omitempty"`
+	Exclude      []string `json:"exclude,omitempty"`
+	Max          int      `json:"max,omitempty"`
+}
+
+// APIScaffoldStatsConfig represents statistics collection settings
+// @Description Statistics collection configuration
+type APIScaffoldStatsConfig struct {
+	Enabled             bool                                  `json:"enabled"`
+	Include             []string                              `json:"include,omitempty"`
+	Exclude             []string                              `json:"exclude,omitempty"`
+	TopN                int                                   `json:"topN" example:"10"`
+	SampleSize          int                                   `json:"sampleSize" example:"10000"`
+	LargeTableThreshold int64                                 `json:"largeTableThreshold" example:"1000000"`
+	RecentDays          int                                   `json:"recentDays" example:"30"`
+	DateColumn          string                                `json:"dateColumn,omitempty"`
+	Inference           APIScaffoldInferenceConfig            `json:"inference"`
+	Checkpoint          APIScaffoldCheckpointConfig           `json:"checkpoint"`
+	Tables              map[string]APIScaffoldTableStatConfig `json:"tables,omitempty"`
+}
+
+// APIScaffoldInferenceConfig represents inference settings
+// @Description Stats-based inference configuration
+type APIScaffoldInferenceConfig struct {
+	Enabled                 bool    `json:"enabled"`
+	EnumMaxCardinality      float64 `json:"enumMaxCardinality" example:"0.01"`
+	EnumMaxDistinct         int     `json:"enumMaxDistinct" example:"20"`
+	DictMaxCardinality      float64 `json:"dictMaxCardinality" example:"0.05"`
+	DictMaxDistinct         int     `json:"dictMaxDistinct" example:"100"`
+	ForeignKeyMinConfidence float64 `json:"foreignKeyMinConfidence" example:"0.7"`
+}
+
+// APIScaffoldCheckpointConfig represents checkpoint settings
+// @Description Checkpoint/resume configuration
+type APIScaffoldCheckpointConfig struct {
+	Enabled bool   `json:"enabled"`
+	TTL     string `json:"ttl" example:"24h"`
+	Force   bool   `json:"force"`
+}
+
+// APIScaffoldTableStatConfig represents per-table stats settings
+// @Description Per-table statistics configuration
+type APIScaffoldTableStatConfig struct {
+	DateColumn string `json:"dateColumn,omitempty"`
+	Skip       bool   `json:"skip"`
+}
+
 // toConfig converts SchemaRequest to config.Config
 func (r *SchemaRequest) toConfig() config.Config {
 	cfg := config.Config{

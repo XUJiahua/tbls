@@ -29,6 +29,7 @@ Key features of `tbls` are:
     - [Diff database and (document or database)](#diff-database-and-document-or-database)
     - [Lint a database](#lint-a-database)
     - [Measure document coverage](#measure-document-coverage)
+    - [Scaffold a config file](#scaffold-a-config-file)
     - [Continuous Integration](#continuous-integration)
   - [Configuration](#configuration)
     - [Name](#name)
@@ -320,6 +321,47 @@ All tables                  16.1%
  time.hyphenated-table      0%
  time.referencing           0%
 ```
+
+### Scaffold a config file
+
+`tbls scaffold` generates a complete configuration file with all parameters filled in.
+
+This is useful for:
+1. Seeing all available configuration options with their default values
+2. Fine-tuning parameters with minimal manual input
+3. Getting started quickly with a fully documented config
+
+**Generate config from existing config file:**
+
+```console
+$ tbls scaffold -c .tbls.yml
+```
+
+**Generate config from DSN (no existing config):**
+
+```console
+$ tbls scaffold --dsn "postgres://dbuser:dbpass@hostname:5432/dbname"
+```
+
+**Specify output file:**
+
+```console
+$ tbls scaffold -c .tbls.yml -o my-config.yml
+```
+
+**Force overwrite without prompt:**
+
+```console
+$ tbls scaffold -c .tbls.yml -f
+```
+
+The generated config includes:
+- All tables with their columns, indexes, constraints, and triggers
+- Comments from the database (or empty strings if not set)
+- Inferred relations based on naming patterns (e.g., `user_id` → `users.id`)
+- All lint rules with their default values
+- All ER diagram settings with defaults
+- Example viewpoints section (commented out)
 
 ### Continuous Integration
 

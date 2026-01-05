@@ -19,6 +19,52 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/scaffold": {
+            "post": {
+                "description": "Generate a complete configuration file with all parameters filled in from database schema.\nThis is useful for quick start - users can modify the generated config before running schema analysis.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Schema"
+                ],
+                "summary": "Generate scaffolded config",
+                "parameters": [
+                    {
+                        "description": "Scaffold request with DSN",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/cmd.ScaffoldRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Scaffolded configuration",
+                        "schema": {
+                            "$ref": "#/definitions/cmd.ScaffoldResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/cmd.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/cmd.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/schema": {
             "post": {
                 "description": "Analyze a database asynchronously. Returns a task ID immediately for progress polling.",
@@ -139,6 +185,324 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "cmd.APIScaffoldCheckpointConfig": {
+            "description": "Checkpoint/resume configuration",
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "force": {
+                    "type": "boolean"
+                },
+                "ttl": {
+                    "type": "string",
+                    "example": "24h"
+                }
+            }
+        },
+        "cmd.APIScaffoldConfig": {
+            "description": "Complete configuration with all parameters and defaults",
+            "type": "object",
+            "properties": {
+                "baseUrl": {
+                    "type": "string"
+                },
+                "comments": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/config.AdditionalComment"
+                    }
+                },
+                "desc": {
+                    "type": "string"
+                },
+                "detectVirtualRelations": {
+                    "$ref": "#/definitions/cmd.APIScaffoldDetectVirtualRelConfig"
+                },
+                "disableOutputSchema": {
+                    "type": "boolean"
+                },
+                "docPath": {
+                    "type": "string"
+                },
+                "dsn": {
+                    "$ref": "#/definitions/config.DSN"
+                },
+                "er": {
+                    "$ref": "#/definitions/cmd.APIScaffoldERConfig"
+                },
+                "exclude": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "format": {
+                    "$ref": "#/definitions/cmd.APIScaffoldFormatConfig"
+                },
+                "include": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "lint": {
+                    "$ref": "#/definitions/cmd.APIScaffoldLintConfig"
+                },
+                "lintExclude": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "relations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/config.AdditionalRelation"
+                    }
+                },
+                "requiredVersion": {
+                    "type": "string"
+                },
+                "stats": {
+                    "$ref": "#/definitions/cmd.APIScaffoldStatsConfig"
+                }
+            }
+        },
+        "cmd.APIScaffoldDetectVirtualRelConfig": {
+            "description": "Virtual relation detection settings",
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "strategy": {
+                    "type": "string"
+                }
+            }
+        },
+        "cmd.APIScaffoldERConfig": {
+            "description": "ER diagram generation settings",
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "type": "boolean"
+                },
+                "distance": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "font": {
+                    "type": "string"
+                },
+                "format": {
+                    "type": "string",
+                    "example": "svg"
+                },
+                "hideDef": {
+                    "type": "boolean"
+                },
+                "showColumnTypes": {
+                    "$ref": "#/definitions/config.ShowColumnTypes"
+                },
+                "skip": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "cmd.APIScaffoldFormatConfig": {
+            "description": "Document format settings",
+            "type": "object",
+            "properties": {
+                "adjust": {
+                    "type": "boolean"
+                },
+                "hideColumnsWithoutValues": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "number": {
+                    "type": "boolean"
+                },
+                "showOnlyFirstParagraph": {
+                    "type": "boolean"
+                },
+                "sort": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "cmd.APIScaffoldInferenceConfig": {
+            "description": "Stats-based inference configuration",
+            "type": "object",
+            "properties": {
+                "dictMaxCardinality": {
+                    "type": "number",
+                    "example": 0.05
+                },
+                "dictMaxDistinct": {
+                    "type": "integer",
+                    "example": 100
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "enumMaxCardinality": {
+                    "type": "number",
+                    "example": 0.01
+                },
+                "enumMaxDistinct": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "foreignKeyMinConfidence": {
+                    "type": "number",
+                    "example": 0.7
+                }
+            }
+        },
+        "cmd.APIScaffoldLintConfig": {
+            "description": "Lint rule configuration with all rules",
+            "type": "object",
+            "properties": {
+                "columnCount": {
+                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
+                },
+                "duplicateRelations": {
+                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
+                },
+                "labelStyleBigQuery": {
+                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
+                },
+                "requireColumnComment": {
+                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
+                },
+                "requireColumns": {
+                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
+                },
+                "requireConstraintComment": {
+                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
+                },
+                "requireForeignKeyIndex": {
+                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
+                },
+                "requireIndexComment": {
+                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
+                },
+                "requireTableComment": {
+                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
+                },
+                "requireTableLabels": {
+                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
+                },
+                "requireTriggerComment": {
+                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
+                },
+                "requireViewpoints": {
+                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
+                },
+                "unrelatedTable": {
+                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
+                }
+            }
+        },
+        "cmd.APIScaffoldLintRule": {
+            "description": "Single lint rule configuration",
+            "type": "object",
+            "properties": {
+                "allOrNothing": {
+                    "type": "boolean"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "exclude": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "max": {
+                    "type": "integer"
+                }
+            }
+        },
+        "cmd.APIScaffoldStatsConfig": {
+            "description": "Statistics collection configuration",
+            "type": "object",
+            "properties": {
+                "checkpoint": {
+                    "$ref": "#/definitions/cmd.APIScaffoldCheckpointConfig"
+                },
+                "dateColumn": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "exclude": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "include": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "inference": {
+                    "$ref": "#/definitions/cmd.APIScaffoldInferenceConfig"
+                },
+                "largeTableThreshold": {
+                    "type": "integer",
+                    "example": 1000000
+                },
+                "recentDays": {
+                    "type": "integer",
+                    "example": 30
+                },
+                "sampleSize": {
+                    "type": "integer",
+                    "example": 10000
+                },
+                "tables": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/cmd.APIScaffoldTableStatConfig"
+                    }
+                },
+                "topN": {
+                    "type": "integer",
+                    "example": 10
+                }
+            }
+        },
+        "cmd.APIScaffoldTableStatConfig": {
+            "description": "Per-table statistics configuration",
+            "type": "object",
+            "properties": {
+                "dateColumn": {
+                    "type": "string"
+                },
+                "skip": {
+                    "type": "boolean"
+                }
+            }
+        },
         "cmd.CheckpointConfig": {
             "description": "Checkpoint/resume configuration",
             "type": "object",
@@ -319,6 +683,37 @@ const docTemplate = `{
                     "description": "Table is the child table name",
                     "type": "string",
                     "example": "posts"
+                }
+            }
+        },
+        "cmd.ScaffoldRequest": {
+            "description": "Request body for generating a scaffolded config",
+            "type": "object",
+            "required": [
+                "dsn"
+            ],
+            "properties": {
+                "dsn": {
+                    "description": "DSN contains the database connection configuration (required)",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/cmd.DSNConfig"
+                        }
+                    ]
+                }
+            }
+        },
+        "cmd.ScaffoldResponse": {
+            "description": "Response containing the scaffolded configuration",
+            "type": "object",
+            "properties": {
+                "config": {
+                    "description": "Config is the generated configuration with all parameters filled in",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/cmd.APIScaffoldConfig"
+                        }
+                    ]
                 }
             }
         },
@@ -602,6 +997,116 @@ const docTemplate = `{
                 }
             }
         },
+        "config.AdditionalComment": {
+            "type": "object",
+            "properties": {
+                "columnComments": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "columnLabels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "constraintComments": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "indexComments": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "table": {
+                    "type": "string"
+                },
+                "tableComment": {
+                    "type": "string"
+                },
+                "triggerComments": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "config.AdditionalRelation": {
+            "type": "object",
+            "properties": {
+                "cardinality": {
+                    "type": "string"
+                },
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "def": {
+                    "type": "string"
+                },
+                "override": {
+                    "type": "boolean"
+                },
+                "parentCardinality": {
+                    "type": "string"
+                },
+                "parentColumns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "parentTable": {
+                    "type": "string"
+                },
+                "table": {
+                    "type": "string"
+                }
+            }
+        },
+        "config.DSN": {
+            "type": "object",
+            "properties": {
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "url": {
+                    "type": "string"
+                }
+            }
+        },
+        "config.ShowColumnTypes": {
+            "type": "object",
+            "properties": {
+                "primary": {
+                    "type": "boolean"
+                },
+                "related": {
+                    "type": "boolean"
+                }
+            }
+        },
         "dict.Dict": {
             "type": "object"
         },
@@ -829,6 +1334,12 @@ const docTemplate = `{
                 },
                 "null_percent": {
                     "type": "number"
+                },
+                "queries": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "row_count": {
                     "type": "integer"
@@ -1134,6 +1645,12 @@ const docTemplate = `{
                 },
                 "index_bytes": {
                     "type": "integer"
+                },
+                "queries": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "row_count": {
                     "type": "integer"
