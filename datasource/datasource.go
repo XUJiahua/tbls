@@ -281,9 +281,19 @@ func collectStatsWithProgress(s *schema.Schema, dsn config.DSN, cfg *config.Conf
 		progressAdapter = stats.NewProgressAdapter(reporter)
 	}
 
+	// Use stats-specific include/exclude if set, otherwise fall back to top-level config
+	statsInclude := cfg.Stats.Include
+	if len(statsInclude) == 0 {
+		statsInclude = cfg.Include
+	}
+	statsExclude := cfg.Stats.Exclude
+	if len(statsExclude) == 0 {
+		statsExclude = cfg.Exclude
+	}
+
 	statsCfg := drivers.StatsConfig{
-		Include:             cfg.Stats.Include,
-		Exclude:             cfg.Stats.Exclude,
+		Include:             statsInclude,
+		Exclude:             statsExclude,
 		TopN:                cfg.Stats.TopN,
 		SampleSize:          cfg.Stats.SampleSize,
 		LargeTableThreshold: cfg.Stats.LargeTableThreshold,

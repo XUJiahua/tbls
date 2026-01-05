@@ -24,10 +24,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/k1LoW/errors"
 	"github.com/k1LoW/tbls/cmdutil"
 	"github.com/k1LoW/tbls/config"
+	"github.com/k1LoW/tbls/datasource"
 	"github.com/k1LoW/tbls/output"
 	tbls_config "github.com/k1LoW/tbls/output/config"
 	"github.com/k1LoW/tbls/output/dot"
@@ -38,13 +41,16 @@ import (
 	"github.com/k1LoW/tbls/output/plantuml"
 	"github.com/k1LoW/tbls/output/xlsx"
 	"github.com/k1LoW/tbls/output/yaml"
+	"github.com/k1LoW/tbls/stats"
 	"github.com/spf13/cobra"
 )
 
 var (
-	format   string
-	outPath  string
-	distance int
+	format          string
+	outPath         string
+	distance        int
+	outForceStats   bool
+	outNoCheckpoint bool
 )
 
 // outCmd represents the doc command.
@@ -74,8 +80,36 @@ var outCmd = &cobra.Command{
 			return err
 		}
 
-		s, err := getSchemaFromJSONorDSNWithStats(c)
+		// Apply command line overrides for checkpoint settings
+		if outForceStats {
+			c.Stats.Checkpoint.Force = true
+		}
+		if outNoCheckpoint {
+			c.Stats.Checkpoint.Enabled = false
+		}
+
+		// Create progress reporter for CLI (write to stderr to avoid mixing with output)
+		var reporter stats.ProgressReporter
+		if c.Stats.Enabled {
+			cliReporter := stats.NewCLIProgressReporter(os.Stderr)
+			reporter = cliReporter
+
+			// Setup signal handling for graceful cancellation
+			sigCh := make(chan os.Signal, 1)
+			signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+			go func() {
+				<-sigCh
+				cliReporter.Cancel()
+			}()
+			defer signal.Stop(sigCh)
+		}
+
+		s, err := datasource.AnalyzeWithStatsAndProgress(c.DSN, c, reporter)
 		if err != nil {
+			return err
+		}
+
+		if err := c.ModifySchema(s); err != nil {
 			return err
 		}
 
@@ -168,4 +202,6 @@ func init() {
 	outCmd.Flags().StringSliceVarP(&labels, "label", "", []string{}, "table labels to be included")
 	outCmd.Flags().IntVarP(&distance, "distance", "", 0, "distance between related tables to be displayed")
 	outCmd.Flags().StringVarP(&when, "when", "", "", "command execute condition")
+	outCmd.Flags().BoolVarP(&outForceStats, "force-stats", "", false, "force stats collection, ignoring checkpoint")
+	outCmd.Flags().BoolVarP(&outNoCheckpoint, "no-checkpoint", "", false, "disable checkpoint for stats collection")
 }

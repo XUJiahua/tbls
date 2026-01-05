@@ -11,11 +11,25 @@ import (
 	"github.com/k1LoW/tbls/schema"
 )
 
-// isDebug checks if debug mode is enabled via TBLS_DEBUG environment variable
+// isDebug checks if debug mode is enabled via DEBUG or TBLS_DEBUG environment variable
 func isDebug() bool {
-	env := os.Getenv("TBLS_DEBUG")
-	debug, _ := strconv.ParseBool(env)
-	return env != "" && debug
+	for _, key := range []string{"DEBUG", "TBLS_DEBUG"} {
+		env := os.Getenv(key)
+		if env != "" {
+			debug, _ := strconv.ParseBool(env)
+			if debug {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// logDebug prints debug message if debug mode is enabled
+func logDebug(format string, args ...interface{}) {
+	if isDebug() {
+		fmt.Printf("[DEBUG] "+format+"\n", args...)
+	}
 }
 
 // logSQL prints SQL query if debug mode is enabled
@@ -44,45 +58,65 @@ var ErrCancelled = fmt.Errorf("operation cancelled")
 
 // CollectStats collects statistics for all tables in the schema
 func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) error {
+	logDebug("Starting stats collection for database: %s", s.Name)
+	logDebug("Include filter: %v", cfg.Include)
+	logDebug("Exclude filter: %v", cfg.Exclude)
+
 	// Get table stats from system.tables
+	logDebug("Fetching table stats from system.tables...")
 	tableStats, err := ch.getTableStats(s.Name)
 	if err != nil {
 		return err
 	}
+	logDebug("Found %d tables in system.tables", len(tableStats))
 
 	// Calculate total columns for progress reporting
 	totalColumns := 0
+	totalTables := 0
 	for _, table := range s.Tables {
 		if shouldCollectStats(table.Name, cfg.Include, cfg.Exclude) {
+			totalTables++
 			totalColumns += len(table.Columns)
 		}
 	}
+	logDebug("Will collect stats for %d tables, %d columns total", totalTables, totalColumns)
 
 	completedColumns := 0
+	completedTables := 0
 
 	for _, table := range s.Tables {
 		// Check if this table should have stats collected
 		if !shouldCollectStats(table.Name, cfg.Include, cfg.Exclude) {
+			logDebug("Skipping table %s (not in include list or in exclude list)", table.Name)
 			continue
 		}
 
 		// Skip if table is already completed (from checkpoint)
 		if cfg.Checkpoint != nil && cfg.Checkpoint.IsTableCompleted(table.Name) {
+			logDebug("Skipping table %s (already completed from checkpoint)", table.Name)
 			completedColumns += len(table.Columns)
+			completedTables++
 			continue
 		}
+
+		completedTables++
+		logDebug("Processing table [%d/%d]: %s (%d columns)", completedTables, totalTables, table.Name, len(table.Columns))
 
 		// Set table-level stats
 		if stats, ok := tableStats[table.Name]; ok {
 			table.Stats = stats
+			logDebug("  Table %s: %d rows, %d bytes", table.Name, stats.RowCount, stats.DataBytes)
 		}
 
 		// Determine sampling strategy
 		isLargeTable := table.Stats != nil && table.Stats.RowCount > cfg.LargeTableThreshold
 		partitionKey := ch.getPartitionKey(s.Name, table.Name)
+		if isLargeTable {
+			logDebug("  Large table detected, will use sampling (partition key: %s)", partitionKey)
+		}
 
 		// Collect column stats
-		for _, col := range table.Columns {
+		for colIdx, col := range table.Columns {
 			// Check for cancellation
 			if cfg.Progress != nil && cfg.Progress.IsCancelled() {
 				if cfg.Checkpoint != nil {
@@ -102,6 +136,10 @@ func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) er
 				cfg.Progress.ReportColumn(table.Name, col.Name, completedColumns, totalColumns)
 			}
 
+			logDebug("  Column [%d/%d] %s.%s (%s) - progress: %d/%d (%.1f%%)",
+				colIdx+1, len(table.Columns), table.Name, col.Name, col.Type,
+				completedColumns, totalColumns, float64(completedColumns)/float64(totalColumns)*100)
+
 			colStats, err := ch.getColumnStats(s.Name, table.Name, col.Name, col.Type, isLargeTable, partitionKey, cfg)
 			if err != nil {
 				// Save checkpoint and return error
@@ -119,12 +157,15 @@ func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) er
 			}
 		}
 
+		logDebug("Completed table: %s", table.Name)
+
 		// Mark table as completed
 		if cfg.Checkpoint != nil {
 			cfg.Checkpoint.MarkTableCompleted(table.Name)
 		}
 	}
 
+	logDebug("Stats collection completed: %d tables, %d columns", completedTables, completedColumns)
 	return nil
 }
 
