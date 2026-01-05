@@ -234,6 +234,9 @@ func (ch *ClickHouse) getTableStats(dbName string) (map[string]*schema.TableStat
 	}
 	defer rows.Close()
 
+	// Format query with actual parameter for recording
+	formattedQuery := strings.TrimSpace(strings.Replace(query, "?", "'"+dbName+"'", 1))
+
 	for rows.Next() {
 		var (
 			name       string
@@ -248,6 +251,7 @@ func (ch *ClickHouse) getTableStats(dbName string) (map[string]*schema.TableStat
 			RowCount:   int64(rowCount),
 			DataBytes:  int64(dataBytes),
 			IndexBytes: int64(indexBytes),
+			Queries:    []string{formattedQuery},
 		}
 	}
 
@@ -423,16 +427,22 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 		stats.AvgLength = &avgLen
 	}
 
+	// Record the stats query
+	stats.Queries = append(stats.Queries, strings.TrimSpace(query))
+
 	// Get top N values
-	topValues, err := ch.getTopValues(dbName, tableName, colName, whereClause, cfg.TopN)
+	topValues, topValuesQuery, err := ch.getTopValues(dbName, tableName, colName, whereClause, cfg.TopN)
 	if err == nil {
 		stats.TopValues = topValues
+		if topValuesQuery != "" {
+			stats.Queries = append(stats.Queries, topValuesQuery)
+		}
 	}
 
 	return stats, nil
 }
 
-func (ch *ClickHouse) getTopValues(dbName, tableName, colName, whereClause string, topN int) ([]schema.TopValue, error) {
+func (ch *ClickHouse) getTopValues(dbName, tableName, colName, whereClause string, topN int) ([]schema.TopValue, string, error) {
 	quotedCol := backquote(colName)
 	quotedDB := backquote(dbName)
 	quotedTable := backquote(tableName)
@@ -448,10 +458,11 @@ func (ch *ClickHouse) getTopValues(dbName, tableName, colName, whereClause strin
 		LIMIT %d
 	`, quotedCol, quotedDB, quotedTable, whereClause, quotedCol, topN)
 
-	log.WithField("query", strings.TrimSpace(query)).Debug("executing SQL")
+	formattedQuery := strings.TrimSpace(query)
+	log.WithField("query", formattedQuery).Debug("executing SQL")
 	rows, err := ch.db.Query(query)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer rows.Close()
 
@@ -470,5 +481,5 @@ func (ch *ClickHouse) getTopValues(dbName, tableName, colName, whereClause strin
 		})
 	}
 
-	return result, nil
+	return result, formattedQuery, nil
 }

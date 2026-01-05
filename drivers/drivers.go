@@ -35,6 +35,8 @@ type CheckpointUpdater interface {
 	IsTableCompleted(tableName string) bool
 	// Save persists the current checkpoint state
 	Save() error
+	// MarkCompleted marks the entire stats collection as completed (for cache reuse)
+	MarkCompleted()
 }
 
 // StatsConfig is passed to StatsCollector

@@ -58,13 +58,15 @@ type ColumnStats struct {
 	MaxLength     *int64     `json:"max_length,omitempty"`
 	AvgLength     *float64   `json:"avg_length,omitempty"`
 	TopValues     []TopValue `json:"top_values,omitempty"`
+	Queries       []string   `json:"queries,omitempty"`
 }
 
 // TableStats holds table-level statistics
 type TableStats struct {
-	RowCount   int64 `json:"row_count"`
-	DataBytes  int64 `json:"data_bytes,omitempty"`
-	IndexBytes int64 `json:"index_bytes,omitempty"`
+	RowCount   int64    `json:"row_count"`
+	DataBytes  int64    `json:"data_bytes,omitempty"`
+	IndexBytes int64    `json:"index_bytes,omitempty"`
+	Queries    []string `json:"queries,omitempty"`
 }
 
 // DistributionItem represents a value with its count and percentage

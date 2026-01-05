@@ -70,6 +70,11 @@ func (a *CheckpointAdapter) Save() error {
 	return a.manager.Save(a.cp)
 }
 
+// MarkCompleted implements drivers.CheckpointUpdater
+func (a *CheckpointAdapter) MarkCompleted() {
+	a.cp.Stage = StageCompleted
+}
+
 // Checkpoint returns the underlying checkpoint
 func (a *CheckpointAdapter) Checkpoint() *Checkpoint {
 	return a.cp

@@ -30,6 +30,7 @@ import (
 	"github.com/k1LoW/tbls/drivers/sqlite"
 	"github.com/k1LoW/tbls/schema"
 	"github.com/k1LoW/tbls/stats"
+	"github.com/sirupsen/logrus"
 	"github.com/xo/dburl"
 )
 
@@ -263,6 +264,12 @@ func collectStatsWithProgress(s *schema.Schema, dsn config.DSN, cfg *config.Conf
 		}
 
 		if cp != nil {
+			if cp.Stage == stats.StageCompleted {
+				// Cache hit - use cached stats, skip collection
+				logrus.WithField("cached_at", cp.UpdatedAt.Format(time.RFC3339)).Info("Using cached stats")
+				stats.ApplyCheckpoint(s, cp)
+				return nil
+			}
 			// Resume from checkpoint - apply partial results
 			stats.ApplyCheckpoint(s, cp)
 		} else {
@@ -340,10 +347,10 @@ func collectStatsWithProgress(s *schema.Schema, dsn config.DSN, cfg *config.Conf
 		}
 	}
 
-	// Clean up checkpoint on success
+	// Mark checkpoint as completed on success (for cache reuse)
 	if collectErr == nil && checkpointAdapter != nil {
-		cpManager := stats.NewCheckpointManager(cfg.DocPath, 0, false)
-		_ = cpManager.Delete()
+		checkpointAdapter.MarkCompleted()
+		_ = checkpointAdapter.Save()
 	}
 
 	return collectErr
