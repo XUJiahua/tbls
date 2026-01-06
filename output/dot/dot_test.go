@@ -2,7 +2,6 @@ package dot
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -108,7 +107,7 @@ func TestOutputTable(t *testing.T) {
 			if err := c.LoadConfigFile(filepath.Join(testdataDir(), "out_test_tbls.yml")); err != nil {
 				t.Error(err)
 			}
-			if err := c.MergeAdditionalData(s); err != nil {
+			if err := c.ModifySchema(s); err != nil {
 				t.Error(err)
 			}
 			ta := s.Tables[0]
@@ -147,7 +146,7 @@ func TestOutputTableTemplate(t *testing.T) {
 			}
 			// use the templates in the testdata directory
 			c.Templates.Dot.Table = filepath.Join(testdataDir(), c.Templates.Dot.Table)
-			if err := c.MergeAdditionalData(s); err != nil {
+			if err := c.ModifySchema(s); err != nil {
 				t.Error(err)
 			}
 			ta := s.Tables[0]
@@ -162,31 +161,6 @@ func TestOutputTableTemplate(t *testing.T) {
 				return
 			}
 			if diff := golden.Diff(t, testdataDir(), tt.wantFile, got); diff != "" {
-				t.Error(diff)
-			}
-		})
-	}
-}
-
-func TestOutputViewpoint(t *testing.T) {
-	s := testutil.NewSchema(t)
-	for i, v := range s.Viewpoints {
-		fn := fmt.Sprintf("dot_test_viewpoint_%d.dot", i)
-		t.Run(v.Name, func(t *testing.T) {
-			c, err := config.New()
-			if err != nil {
-				t.Error(err)
-			}
-			got := &bytes.Buffer{}
-			o := New(c)
-			if err := o.OutputViewpoint(got, v); err != nil {
-				t.Error(err)
-			}
-			if os.Getenv("UPDATE_GOLDEN") != "" {
-				golden.Update(t, testdataDir(), fn, got)
-				return
-			}
-			if diff := golden.Diff(t, testdataDir(), fn, got); diff != "" {
 				t.Error(diff)
 			}
 		})

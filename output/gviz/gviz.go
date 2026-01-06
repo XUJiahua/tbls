@@ -53,15 +53,6 @@ func (g *Gviz) OutputTable(wr io.Writer, t *schema.Table) error {
 	return g.render(wr, buf.Bytes())
 }
 
-// OutputViewpoint generate image for viewpoint.
-func (g *Gviz) OutputViewpoint(wr io.Writer, v *schema.Viewpoint) error {
-	buf := &bytes.Buffer{}
-	if err := g.dot.OutputViewpoint(buf, v); err != nil {
-		return errors.WithStack(err)
-	}
-	return g.render(wr, buf.Bytes())
-}
-
 func (g *Gviz) render(wr io.Writer, b []byte) (e error) {
 	ctx := context.Background()
 	gviz, err := graphviz.New(ctx)
@@ -140,19 +131,6 @@ func Output(s *schema.Schema, c *config.Config, force bool) (e error) {
 		}
 	}
 
-	// viewpoints
-	for i, v := range s.Viewpoints {
-		fn := fmt.Sprintf("viewpoint-%d.%s", i, erFormat)
-		fmt.Printf("%s\n", filepath.Join(outputPath, fn))
-		f, err := os.OpenFile(filepath.Join(fullPath, fn), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644) // #nosec
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		if err := g.OutputViewpoint(f, v); err != nil {
-			return errors.WithStack(err)
-		}
-	}
-
 	return nil
 }
 
@@ -222,13 +200,6 @@ func outputErExists(s *schema.Schema, erFormat, path string) bool {
 	// tables
 	for _, t := range s.Tables {
 		fn := fmt.Sprintf("%s.%s", t.Name, erFormat)
-		if _, err := os.Lstat(filepath.Join(path, fn)); err == nil {
-			return true
-		}
-	}
-	// viewpoints
-	for i := range s.Viewpoints {
-		fn := fmt.Sprintf("viewpoint-%d.%s", i, erFormat)
 		if _, err := os.Lstat(filepath.Join(path, fn)); err == nil {
 			return true
 		}

@@ -79,28 +79,3 @@ driver:
   name: testdriver
   databaseVersion: 1.0.0
   meta: {}
-viewpoints:
-- name: table a b
-  desc: select table a and b
-  tables:
-  - a
-  - b
-- name: label blue
-  desc: select label blue
-  labels:
-  - blue
-- name: label green
-  desc: select label green
-  labels:
-  - green
-  groups:
-  - name: label red
-    desc: select label red
-    labels:
-    - red
-- name: table a label red
-  desc: "select table a and label red\n\n- table a\n- label red"
-  labels:
-  - red
-  tables:
-  - a

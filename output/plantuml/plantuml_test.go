@@ -64,7 +64,7 @@ func TestOutputSchemaTemplate(t *testing.T) {
 	}
 	// use the templates in the testdata directory
 	c.Templates.PUML.Schema = filepath.Join(testdataDir(), c.Templates.PUML.Schema)
-	if err := c.MergeAdditionalData(s); err != nil {
+	if err := c.ModifySchema(s); err != nil {
 		t.Error(err)
 	}
 	o := New(c)
@@ -91,7 +91,7 @@ func TestOutputTable(t *testing.T) {
 	if err := c.LoadConfigFile(filepath.Join(testdataDir(), "out_test_tbls.yml")); err != nil {
 		t.Error(err)
 	}
-	if err := c.MergeAdditionalData(s); err != nil {
+	if err := c.ModifySchema(s); err != nil {
 		t.Error(err)
 	}
 	ta := s.Tables[0]
@@ -122,7 +122,7 @@ func TestOutputTableTemplate(t *testing.T) {
 	}
 	// use the templates in the testdata directory
 	c.Templates.PUML.Table = filepath.Join(testdataDir(), c.Templates.PUML.Table)
-	if err := c.MergeAdditionalData(s); err != nil {
+	if err := c.ModifySchema(s); err != nil {
 		t.Error(err)
 	}
 	ta := s.Tables[0]

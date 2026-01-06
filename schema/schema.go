@@ -131,42 +131,6 @@ func (labels Labels) Contains(name string) bool {
 	})
 }
 
-// Viewpoint is the struct for viewpoint information.
-type Viewpoint struct {
-	Name     string            `json:"name"`
-	Desc     string            `json:"desc"`
-	Labels   []string          `json:"labels,omitempty"`
-	Tables   []string          `json:"tables,omitempty"`
-	Distance int               `json:"distance,omitempty"`
-	Groups   []*ViewpointGroup `json:"groups,omitempty"`
-
-	Schema *Schema `json:"-"`
-}
-
-type ViewpointGroup struct {
-	Name   string   `json:"name"`
-	Desc   string   `json:"desc"`
-	Labels []string `json:"labels,omitempty"`
-	Tables []string `json:"tables,omitempty"`
-	Color  string   `json:"color,omitempty"`
-}
-
-type Viewpoints []*Viewpoint
-
-func (vs Viewpoints) Merge(in *Viewpoint) Viewpoints {
-	for i, v := range vs {
-		if sameElements(v.Labels, in.Labels) && sameElements(v.Tables, in.Tables) {
-			vs[i] = in
-			return vs
-		}
-		if v.Name == in.Name {
-			vs[i] = in
-			return vs
-		}
-	}
-	return append(vs, in)
-}
-
 // Index is the struct for database index.
 type Index struct {
 	Name    string   `json:"name"`
@@ -215,19 +179,12 @@ type Column struct {
 	Inferences      *ColumnInferences `json:"inferences,omitempty"`
 }
 
-type TableViewpoint struct {
-	Index int    `json:"index"`
-	Name  string `json:"name"`
-	Desc  string `json:"desc"`
-}
-
 // Table is the struct for database table.
 type Table struct {
 	Name             string
 	Type             string
 	Comment          string
 	Columns          []*Column
-	Viewpoints       []*TableViewpoint
 	Indexes          []*Index
 	Constraints      []*Constraint
 	Triggers         []*Trigger
@@ -287,7 +244,6 @@ type Schema struct {
 	Enums      []*Enum           `json:"enums,omitempty"`
 	Driver     *Driver           `json:"driver,omitempty"`
 	Labels     Labels            `json:"labels,omitempty"`
-	Viewpoints Viewpoints        `json:"viewpoints,omitempty"`
 	Inferences *SchemaInferences `json:"inferences,omitempty"`
 }
 
@@ -417,9 +373,6 @@ func (s *Schema) Sort() error {
 		}
 		return s.Functions[i].Arguments < s.Functions[j].Arguments
 	})
-	sort.SliceStable(s.Viewpoints, func(i, j int) bool {
-		return s.Viewpoints[i].Name < s.Viewpoints[j].Name
-	})
 	return nil
 }
 
@@ -428,25 +381,7 @@ func (s *Schema) Repair() (err error) {
 	defer func() {
 		err = errors.WithStack(err)
 	}()
-	if err := s.repairWithoutViewpoints(); err != nil {
-		return err
-	}
-	// viewpoints should be created using as complete a schema as possible
-	for _, v := range s.Viewpoints {
-		cs, err := s.CloneWithoutViewpoints()
-		if err != nil {
-			return fmt.Errorf("failed to repair viewpoint: %w", err)
-		}
-		if err := cs.Filter(&FilterOption{
-			Include:       v.Tables,
-			IncludeLabels: v.Labels,
-			Distance:      v.Distance,
-		}); err != nil {
-			return fmt.Errorf("failed to repair viewpoint: %w", err)
-		}
-		v.Schema = cs
-	}
-	return nil
+	return s.repairRelations()
 }
 
 func (s *Schema) Clone() (c *Schema, err error) {
@@ -467,25 +402,7 @@ func (s *Schema) Clone() (c *Schema, err error) {
 	return c, nil
 }
 
-func (s *Schema) CloneWithoutViewpoints() (c *Schema, err error) {
-	defer func() {
-		err = errors.WithStack(err)
-	}()
-	b, err := json.Marshal(s)
-	if err != nil {
-		return nil, err
-	}
-	c = &Schema{}
-	if err := json.Unmarshal(b, c); err != nil {
-		return nil, err
-	}
-	if err := c.repairWithoutViewpoints(); err != nil {
-		return nil, err
-	}
-	return c, nil
-}
-
-func (s *Schema) repairWithoutViewpoints() (err error) {
+func (s *Schema) repairRelations() (err error) {
 	defer func() {
 		err = errors.WithStack(err)
 	}()
@@ -719,11 +636,4 @@ func (t *Table) CollectTablesAndRelations(distance int, root bool) ([]*Table, []
 	}
 
 	return uTables, uRelations, nil
-}
-
-func sameElements(a, b []string) bool {
-	if len(a) == len(b) && lo.Every(a, b) {
-		return true
-	}
-	return false
 }

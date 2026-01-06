@@ -25,10 +25,6 @@ type SchemaRequest struct {
 	Distance int `json:"distance,omitempty"`
 	// Format contains output format settings
 	Format *FormatConfig `json:"format,omitempty"`
-	// Relations defines additional relations to add
-	Relations []RelationConfig `json:"relations,omitempty"`
-	// Comments defines additional comments to add
-	Comments []CommentConfig `json:"comments,omitempty"`
 	// DetectVirtualRelations configures virtual relation detection
 	DetectVirtualRelations *DetectVirtualRelationsConfig `json:"detectVirtualRelations,omitempty"`
 	// Stats configures statistics collection
@@ -53,34 +49,6 @@ type FormatConfig struct {
 	Sort bool `json:"sort,omitempty"`
 	// Adjust column widths
 	Adjust bool `json:"adjust,omitempty"`
-}
-
-// RelationConfig defines a table relation
-// @Description Table relation configuration
-type RelationConfig struct {
-	// Table is the child table name
-	Table string `json:"table" example:"posts"`
-	// Columns are the child table columns
-	Columns []string `json:"columns" example:"author_id"`
-	// ParentTable is the parent table name
-	ParentTable string `json:"parentTable" example:"users"`
-	// ParentColumns are the parent table columns
-	ParentColumns []string `json:"parentColumns" example:"id"`
-	// Def is the relation definition/description
-	Def string `json:"def,omitempty"`
-	// Cardinality describes the relationship cardinality
-	Cardinality string `json:"cardinality,omitempty" enums:"zero or one,exactly one,zero or more,one or more"`
-}
-
-// CommentConfig defines table/column comments
-// @Description Table and column comments configuration
-type CommentConfig struct {
-	// Table is the table name
-	Table string `json:"table" example:"users"`
-	// TableComment is the comment for the table
-	TableComment string `json:"tableComment,omitempty" example:"User accounts table"`
-	// ColumnComments maps column names to their comments
-	ColumnComments map[string]string `json:"columnComments,omitempty"`
 }
 
 // DetectVirtualRelationsConfig configures virtual relation detection
@@ -224,15 +192,10 @@ type APIScaffoldConfig struct {
 	ER                     APIScaffoldERConfig               `json:"er"`
 	Include                []string                          `json:"include,omitempty"`
 	Exclude                []string                          `json:"exclude,omitempty"`
-	Lint                   APIScaffoldLintConfig             `json:"lint"`
-	LintExclude            []string                          `json:"lintExclude,omitempty"`
-	Relations              []config.AdditionalRelation       `json:"relations,omitempty"`
-	Comments               []config.AdditionalComment        `json:"comments,omitempty"`
 	DetectVirtualRelations APIScaffoldDetectVirtualRelConfig `json:"detectVirtualRelations"`
 	Stats                  APIScaffoldStatsConfig            `json:"stats"`
 	BaseURL                string                            `json:"baseUrl,omitempty"`
 	RequiredVersion        string                            `json:"requiredVersion,omitempty"`
-	DisableOutputSchema    bool                              `json:"disableOutputSchema"`
 }
 
 // APIScaffoldFormatConfig represents format settings
@@ -262,33 +225,6 @@ type APIScaffoldERConfig struct {
 type APIScaffoldDetectVirtualRelConfig struct {
 	Enabled  bool   `json:"enabled"`
 	Strategy string `json:"strategy,omitempty"`
-}
-
-// APIScaffoldLintConfig represents lint rule settings
-// @Description Lint rule configuration with all rules
-type APIScaffoldLintConfig struct {
-	RequireTableComment      APIScaffoldLintRule `json:"requireTableComment"`
-	RequireColumnComment     APIScaffoldLintRule `json:"requireColumnComment"`
-	RequireIndexComment      APIScaffoldLintRule `json:"requireIndexComment"`
-	RequireConstraintComment APIScaffoldLintRule `json:"requireConstraintComment"`
-	RequireTriggerComment    APIScaffoldLintRule `json:"requireTriggerComment"`
-	RequireTableLabels       APIScaffoldLintRule `json:"requireTableLabels"`
-	UnrelatedTable           APIScaffoldLintRule `json:"unrelatedTable"`
-	ColumnCount              APIScaffoldLintRule `json:"columnCount"`
-	RequireColumns           APIScaffoldLintRule `json:"requireColumns"`
-	DuplicateRelations       APIScaffoldLintRule `json:"duplicateRelations"`
-	RequireForeignKeyIndex   APIScaffoldLintRule `json:"requireForeignKeyIndex"`
-	LabelStyleBigQuery       APIScaffoldLintRule `json:"labelStyleBigQuery"`
-	RequireViewpoints        APIScaffoldLintRule `json:"requireViewpoints"`
-}
-
-// APIScaffoldLintRule represents a single lint rule configuration
-// @Description Single lint rule configuration
-type APIScaffoldLintRule struct {
-	Enabled      bool     `json:"enabled"`
-	AllOrNothing bool     `json:"allOrNothing,omitempty"`
-	Exclude      []string `json:"exclude,omitempty"`
-	Max          int      `json:"max,omitempty"`
 }
 
 // APIScaffoldStatsConfig represents statistics collection settings
@@ -350,24 +286,6 @@ func (r *SchemaRequest) toConfig() config.Config {
 	if r.Format != nil {
 		cfg.Format.Sort = r.Format.Sort
 		cfg.Format.Adjust = r.Format.Adjust
-	}
-
-	for _, rel := range r.Relations {
-		cfg.Relations = append(cfg.Relations, config.AdditionalRelation{
-			Table:         rel.Table,
-			Columns:       rel.Columns,
-			ParentTable:   rel.ParentTable,
-			ParentColumns: rel.ParentColumns,
-			Def:           rel.Def,
-		})
-	}
-
-	for _, c := range r.Comments {
-		cfg.Comments = append(cfg.Comments, config.AdditionalComment{
-			Table:          c.Table,
-			TableComment:   c.TableComment,
-			ColumnComments: c.ColumnComments,
-		})
 	}
 
 	if r.DetectVirtualRelations != nil {

@@ -45,17 +45,11 @@ type Config struct {
 	Include                []string               `yaml:"include,omitempty" json:"include,omitempty"`
 	Exclude                []string               `yaml:"exclude,omitempty" json:"exclude,omitempty"`
 	Distance               int                    `yaml:"distance,omitempty" json:"distance,omitempty"`
-	Lint                   Lint                   `yaml:"lint,omitempty" json:"lint,omitempty"`
-	LintExclude            []string               `yaml:"lintExclude,omitempty" json:"lintExclude,omitempty"`
-	Viewpoints             []Viewpoint            `yaml:"viewpoints,omitempty" json:"viewpoints,omitempty"`
-	Relations              []AdditionalRelation   `yaml:"relations,omitempty" json:"relations,omitempty"`
-	Comments               []AdditionalComment    `yaml:"comments,omitempty" json:"comments,omitempty"`
 	Dict                   dict.Dict              `yaml:"dict,omitempty" json:"dict,omitempty"`
 	Templates              Templates              `yaml:"templates,omitempty" json:"templates,omitempty"`
 	DetectVirtualRelations DetectVirtualRelations `yaml:"detectVirtualRelations,omitempty" json:"detectVirtualRelations,omitempty"`
 	BaseURL                string                 `yaml:"baseUrl,omitempty" json:"baseUrl,omitempty"`
 	RequiredVersion        string                 `yaml:"requiredVersion,omitempty" json:"requiredVersion,omitempty"`
-	DisableOutputSchema    bool                   `yaml:"disableOutputSchema,omitempty" json:"disableOutputSchema,omitempty"`
 	Stats                  StatsConfig            `yaml:"stats,omitempty" json:"stats,omitempty"`
 	MergedDict             dict.Dict              `yaml:"-" json:"-"`
 
@@ -96,30 +90,6 @@ type ER struct {
 type ShowColumnTypes struct {
 	Related bool `yaml:"related,omitempty" json:"related,omitempty"`
 	Primary bool `yaml:"primary,omitempty" json:"primary,omitempty"`
-}
-
-// AdditionalRelation is the struct for table relation from yaml.
-type AdditionalRelation struct {
-	Table             string   `yaml:"table" json:"table"`
-	Columns           []string `yaml:"columns" json:"columns"`
-	Cardinality       string   `yaml:"cardinality,omitempty" json:"cardinality,omitempty"`
-	ParentTable       string   `yaml:"parentTable" json:"parentTable"`
-	ParentColumns     []string `yaml:"parentColumns" json:"parentColumns"`
-	ParentCardinality string   `yaml:"parentCardinality,omitempty" json:"parentCardinality,omitempty"`
-	Def               string   `yaml:"def,omitempty" json:"def,omitempty"`
-	Override          bool     `yaml:"override,omitempty" json:"override,omitempty"`
-}
-
-// AdditionalComment is the struct for table relation from yaml.
-type AdditionalComment struct {
-	Table              string              `yaml:"table" json:"table"`
-	TableComment       string              `yaml:"tableComment,omitempty" json:"tableComment,omitempty"`
-	ColumnComments     map[string]string   `yaml:"columnComments,omitempty" json:"columnComments,omitempty"`
-	ColumnLabels       map[string][]string `yaml:"columnLabels,omitempty" json:"columnLabels,omitempty"`
-	IndexComments      map[string]string   `yaml:"indexComments,omitempty" json:"indexComments,omitempty"`
-	ConstraintComments map[string]string   `yaml:"constraintComments,omitempty" json:"constraintComments,omitempty"`
-	TriggerComments    map[string]string   `yaml:"triggerComments,omitempty" json:"triggerComments,omitempty"`
-	Labels             []string            `yaml:"labels,omitempty" json:"labels,omitempty"`
 }
 
 type DetectVirtualRelations struct {
@@ -459,22 +429,6 @@ func (c *Config) validate() error {
 	if !lo.Contains(SupportERFormat, c.ER.Format) {
 		return fmt.Errorf("unsupported ER format: %s", c.ER.Format)
 	}
-	for i, v := range c.Viewpoints {
-		if v.Name == "" {
-			return fmt.Errorf("viewpoints[%d] name is required", i)
-		}
-		if v.Desc == "" {
-			return fmt.Errorf("viewpoints[%d] description is required", i)
-		}
-		for j, g := range v.Groups {
-			if g.Name == "" {
-				return fmt.Errorf("viewpoints[%d].groups[%d] name is required", i, j)
-			}
-			if g.Desc == "" {
-				return fmt.Errorf("viewpoints[%d].groups[%d] description is required", i, j)
-			}
-		}
-	}
 
 	return nil
 }
@@ -558,9 +512,6 @@ func (c *Config) ModifySchema(s *schema.Schema) error {
 	if err := detectPKFK(s); err != nil {
 		return err
 	}
-	if err := c.MergeAdditionalData(s); err != nil {
-		return err
-	}
 	if err := c.FilterTables(s); err != nil {
 		return err
 	}
@@ -584,105 +535,6 @@ func (c *Config) ModifySchema(s *schema.Schema) error {
 		return err
 	}
 
-	// set Viewpoints
-	// viewpoints should be created using as complete a schema as possible
-	for _, v := range c.Viewpoints {
-		cs, err := s.CloneWithoutViewpoints()
-		if err != nil {
-			return err
-		}
-		if err := cs.Filter(&schema.FilterOption{
-			Include:       v.Tables,
-			IncludeLabels: v.Labels,
-			Distance:      v.Distance,
-		}); err != nil {
-			return err
-		}
-		if err := c.detectShowColumnsForER(cs); err != nil {
-			return err
-		}
-		groups := []*schema.ViewpointGroup{}
-		tables := lo.Map(cs.Tables, func(t *schema.Table, _ int) string {
-			return t.Name
-		})
-		for _, g := range v.Groups {
-			gt, _, err := cs.SeparateTablesThatAreIncludedOrNot(&schema.FilterOption{
-				Include:       g.Tables,
-				IncludeLabels: g.Labels,
-			})
-			if err != nil {
-				return err
-			}
-			groups = append(groups, &schema.ViewpointGroup{
-				Name:   g.Name,
-				Desc:   g.Desc,
-				Tables: g.Tables,
-				Labels: g.Labels,
-				Color:  g.Color,
-			})
-			left, right := lo.Difference(tables, lo.Map(gt, func(t *schema.Table, _ int) string {
-				return t.Name
-			}))
-			if len(right) > 0 {
-				return fmt.Errorf("viewpoint group '%s' has duplicate tables %v", g.Name, right)
-			}
-			tables = left
-		}
-		s.Viewpoints = s.Viewpoints.Merge(&schema.Viewpoint{
-			Name:     v.Name,
-			Desc:     v.Desc,
-			Labels:   v.Labels,
-			Tables:   v.Tables,
-			Distance: v.Distance,
-			Groups:   groups,
-			Schema:   cs,
-		})
-	}
-	for _, v := range s.Viewpoints {
-	L:
-		for _, l := range v.Labels {
-			for _, t := range s.Tables {
-				if t.Labels.Contains(l) {
-					continue L
-				}
-				for _, c := range t.Columns {
-					if c.Labels.Contains(l) {
-						continue L
-					}
-				}
-			}
-			return fmt.Errorf("viewpoint '%s' has unknown label '%s'", v.Name, l)
-		}
-	}
-	for vi, v := range s.Viewpoints {
-		// Add viewpoints to table
-
-		for _, t := range v.Tables {
-			ts, err := s.MatchTablesByName(t)
-			if err != nil {
-				return err
-			}
-			for _, tt := range ts {
-				tt.Viewpoints = append(tt.Viewpoints, &schema.TableViewpoint{
-					Index: vi,
-					Name:  v.Name,
-					Desc:  v.Desc,
-				})
-			}
-		}
-	}
-
-	return nil
-}
-
-// MergeAdditionalData merge relations: comments: to schema.Schema.
-func (c *Config) MergeAdditionalData(s *schema.Schema) error {
-	if err := mergeAdditionalRelations(s, c.Relations); err != nil {
-		return err
-	}
-	if err := mergeAdditionalComments(s, c.Comments); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -777,135 +629,6 @@ func (c *Config) detectShowColumnsForER(s *schema.Schema) error {
 		}
 	}
 
-	return nil
-}
-
-func mergeAdditionalRelations(s *schema.Schema, relations []AdditionalRelation) (err error) {
-	defer func() {
-		err = errors.WithStack(err)
-	}()
-	for _, r := range relations {
-		c, err := schema.ToCardinality(r.Cardinality)
-		if err != nil {
-			return fmt.Errorf("failed to add relation: %w", err)
-		}
-		pc, err := schema.ToCardinality(r.ParentCardinality)
-		if err != nil {
-			return fmt.Errorf("failed to add relation: %w", err)
-		}
-		relation := &schema.Relation{
-			Cardinality:       c,
-			ParentCardinality: pc,
-			Virtual:           true,
-		}
-		if r.Def != "" {
-			relation.Def = r.Def
-		} else {
-			relation.Def = "Additional Relation"
-		}
-		relation.Table, err = s.FindTableByName(r.Table)
-		if err != nil {
-			return fmt.Errorf("failed to add relation: %w", err)
-		}
-		for _, c := range r.Columns {
-			column, err := relation.Table.FindColumnByName(c)
-			if err != nil {
-				return fmt.Errorf("failed to add relation: %w", err)
-			}
-			relation.Columns = append(relation.Columns, column)
-			column.ParentRelations = append(column.ParentRelations, relation)
-		}
-		relation.ParentTable, err = s.FindTableByName(r.ParentTable)
-		if err != nil {
-			return fmt.Errorf("failed to add relation: %w", err)
-		}
-		for _, c := range r.ParentColumns {
-			column, err := relation.ParentTable.FindColumnByName(c)
-			if err != nil {
-				return fmt.Errorf("failed to add relation: %w", err)
-			}
-			relation.ParentColumns = append(relation.ParentColumns, column)
-			column.ChildRelations = append(column.ChildRelations, relation)
-		}
-
-		if r.Override {
-			cr, err := s.FindRelation(relation.Columns, relation.ParentColumns)
-			if err != nil {
-				s.Relations = append(s.Relations, relation)
-			} else {
-				cr.Virtual = true
-				cr.Def = r.Def
-				cr.Cardinality, err = schema.ToCardinality(r.Cardinality)
-				if err != nil {
-					return fmt.Errorf("failed to add relation: %w", err)
-				}
-				cr.ParentCardinality, err = schema.ToCardinality(r.ParentCardinality)
-				if err != nil {
-					return fmt.Errorf("failed to add relation: %w", err)
-				}
-			}
-		} else {
-			s.Relations = append(s.Relations, relation)
-		}
-	}
-	return nil
-}
-
-func mergeAdditionalComments(s *schema.Schema, comments []AdditionalComment) (err error) {
-	defer func() {
-		err = errors.WithStack(err)
-	}()
-	for _, c := range comments {
-		table, err := s.FindTableByName(c.Table)
-		if err != nil {
-			return fmt.Errorf("failed to add table comment: %w", err)
-		}
-		if c.TableComment != "" {
-			table.Comment = c.TableComment
-		}
-		if len(c.Labels) > 0 {
-			for _, l := range c.Labels {
-				table.Labels = table.Labels.Merge(l)
-			}
-		}
-		for c, comment := range c.ColumnComments {
-			column, err := table.FindColumnByName(c)
-			if err != nil {
-				return fmt.Errorf("failed to add column comment: %w", err)
-			}
-			column.Comment = comment
-		}
-		for c, labels := range c.ColumnLabels {
-			column, err := table.FindColumnByName(c)
-			if err != nil {
-				return fmt.Errorf("failed to add column comment: %w", err)
-			}
-			for _, l := range labels {
-				column.Labels = column.Labels.Merge(l)
-			}
-		}
-		for i, comment := range c.IndexComments {
-			index, err := table.FindIndexByName(i)
-			if err != nil {
-				return fmt.Errorf("failed to add index comment: %w", err)
-			}
-			index.Comment = comment
-		}
-		for c, comment := range c.ConstraintComments {
-			constraint, err := table.FindConstraintByName(c)
-			if err != nil {
-				return fmt.Errorf("failed to add constraint comment: %w", err)
-			}
-			constraint.Comment = comment
-		}
-		for t, comment := range c.TriggerComments {
-			trigger, err := table.FindTriggerByName(t)
-			if err != nil {
-				return fmt.Errorf("failed to add trigger comment: %w", err)
-			}
-			trigger.Comment = comment
-		}
-	}
 	return nil
 }
 

@@ -19,7 +19,6 @@ import (
 	"github.com/k1LoW/tbls/schema"
 	"github.com/mattn/go-runewidth"
 	"github.com/pmezard/go-difflib/difflib"
-	"github.com/samber/lo"
 	"gitlab.com/golang-commonmark/mdurl"
 )
 
@@ -101,35 +100,6 @@ func (m *Md) OutputTable(wr io.Writer, t *schema.Table) error {
 	return nil
 }
 
-// OutputViewpoint output md format for viewpoint.
-func (m *Md) OutputViewpoint(wr io.Writer, i int, v *schema.Viewpoint) error {
-	ts, err := m.viewpointTemplate()
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	tmpl := template.Must(template.New("viewpoint").Funcs(output.Funcs(&m.config.MergedDict)).Parse(ts))
-	templateData, err := m.makeViewpointTemplateData(v)
-	if err != nil {
-		return errors.WithStack(err)
-	}
-	templateData["er"] = !m.config.ER.Skip
-	switch m.config.ER.Format {
-	case "mermaid":
-		buf := new(bytes.Buffer)
-		mmd := mermaid.New(m.config)
-		if err := mmd.OutputSchema(buf, v.Schema); err != nil {
-			return err
-		}
-		templateData["erDiagram"] = fmt.Sprintf("```mermaid\n%s```", buf.String())
-	default:
-		templateData["erDiagram"] = fmt.Sprintf("![er](%sviewpoint-%d.%s)", m.config.BaseURL, i, m.config.ER.Format)
-	}
-	if err := tmpl.Execute(wr, templateData); err != nil {
-		return errors.WithStack(err)
-	}
-	return nil
-}
-
 // Output generate markdown files.
 func Output(s *schema.Schema, c *config.Config, force bool) (e error) {
 	docPath := c.DocPath
@@ -177,24 +147,6 @@ func Output(s *schema.Schema, c *config.Config, force bool) (e error) {
 			return errors.WithStack(err)
 		}
 		fmt.Printf("%s\n", filepath.Join(docPath, fmt.Sprintf("%s.md", t.Name)))
-		if err := f.Close(); err != nil {
-			return errors.WithStack(err)
-		}
-	}
-
-	// viewpoints
-	for i, v := range s.Viewpoints {
-		fn := fmt.Sprintf("viewpoint-%d.md", i)
-		f, err := os.Create(filepath.Clean(filepath.Join(fullPath, fn)))
-		if err != nil {
-			_ = f.Close()
-			return errors.WithStack(err)
-		}
-		if err := md.OutputViewpoint(f, i, v); err != nil {
-			_ = f.Close()
-			return errors.WithStack(err)
-		}
-		fmt.Printf("%s\n", filepath.Join(docPath, fn))
 		if err := f.Close(); err != nil {
 			return errors.WithStack(err)
 		}
@@ -390,38 +342,6 @@ func DiffSchemaAndDocs(docPath string, s *schema.Schema, c *config.Config) (stri
 		diffed[fn] = struct{}{}
 	}
 
-	// viewpoints
-	for i, v := range s.Viewpoints {
-		buf := new(bytes.Buffer)
-		n := fmt.Sprintf("viewpoint-%d", i)
-		fn := fmt.Sprintf("viewpoint-%d.md", i)
-		to := fmt.Sprintf("%s %s", mdsn, n)
-		if err := md.OutputViewpoint(buf, i, v); err != nil {
-			return "", errors.WithStack(err)
-		}
-		targetPath := filepath.Join(fullPath, fn)
-		a, err := os.ReadFile(filepath.Clean(targetPath))
-		if err != nil {
-			a = []byte{}
-		}
-		from := filepath.Join(docPath, fn)
-
-		d := difflib.UnifiedDiff{
-			A:        difflib.SplitLines(string(a)),
-			B:        difflib.SplitLines(buf.String()),
-			FromFile: from,
-			ToFile:   to,
-			Context:  3,
-		}
-
-		text, _ := difflib.GetUnifiedDiffString(d)
-		if text != "" {
-			diff += fmt.Sprintf("diff '%s' '%s'\n", from, to)
-			diff += text
-		}
-		diffed[fn] = struct{}{}
-	}
-
 	files, err := os.ReadDir(fullPath)
 	if err != nil {
 		return "", errors.WithStack(err)
@@ -492,21 +412,6 @@ func (m *Md) tableTemplate() (string, error) {
 	return string(tb), nil
 }
 
-func (m *Md) viewpointTemplate() (string, error) {
-	if m.config.Templates.MD.Viewpoint != "" {
-		tb, err := os.ReadFile(m.config.Templates.MD.Viewpoint)
-		if err != nil {
-			return "", errors.WithStack(err)
-		}
-		return string(tb), nil
-	}
-	tb, err := m.tmpl.ReadFile("templates/viewpoint.md.tmpl")
-	if err != nil {
-		return "", errors.WithStack(err)
-	}
-	return string(tb), nil
-}
-
 func (m *Md) makeSchemaTemplateData(s *schema.Schema) map[string]interface{} {
 	number := m.config.Format.Number
 	adjust := m.config.Format.Adjust
@@ -519,18 +424,14 @@ func (m *Md) makeSchemaTemplateData(s *schema.Schema) map[string]interface{} {
 	// Functions
 	functionsData := m.functionsData(s.Functions, number, adjust)
 
-	// Viewpoints
-	viewpointsData := m.viewpointsData(s.Viewpoints, number, adjust, showOnlyFirstParagraph)
-
 	// Enums
 	enumData := m.enumData(s.Enums)
 
 	return map[string]interface{}{
-		"Schema":     s,
-		"Tables":     tablesData,
-		"Functions":  functionsData,
-		"Viewpoints": viewpointsData,
-		"Enums":      enumData,
+		"Schema":    s,
+		"Tables":    tablesData,
+		"Functions": functionsData,
+		"Enums":     enumData,
 	}
 }
 
@@ -592,28 +493,6 @@ func (m *Md) makeTableTemplateData(t *schema.Table) map[string]interface{} {
 		adjustData(&data, t.ShowColumn(schema.ColumnComment, hideColumns), mdEscRep.Replace(c.Comment))
 		adjustData(&data, t.ShowColumn(schema.ColumnLabels, hideColumns), output.LabelJoin(c.Labels))
 		columnsData = append(columnsData, data)
-	}
-
-	// Viewpoints
-	viewpointsData := [][]string{
-		[]string{
-			m.config.MergedDict.Lookup("Name"),
-			m.config.MergedDict.Lookup("Definition"),
-		},
-		[]string{"----", "----------"},
-	}
-
-	for _, v := range t.Viewpoints {
-		desc := v.Desc
-		if showOnlyFirstParagraph {
-			desc = output.ShowOnlyFirstParagraph(desc)
-		}
-		data := []string{
-			fmt.Sprintf("[%s](viewpoint-%d.md)", v.Name, v.Index),
-			desc,
-		}
-
-		viewpointsData = append(viewpointsData, data)
 	}
 
 	// Constraints
@@ -728,7 +607,6 @@ func (m *Md) makeTableTemplateData(t *schema.Table) map[string]interface{} {
 		return map[string]interface{}{
 			"Table":            t,
 			"Columns":          adjustTable(columnsData),
-			"Viewpoints":       adjustTable(viewpointsData),
 			"Constraints":      adjustTable(constraintsData),
 			"Indexes":          adjustTable(indexesData),
 			"Triggers":         adjustTable(triggersData),
@@ -739,53 +617,11 @@ func (m *Md) makeTableTemplateData(t *schema.Table) map[string]interface{} {
 	return map[string]interface{}{
 		"Table":            t,
 		"Columns":          columnsData,
-		"Viewpoints":       viewpointsData,
 		"Constraints":      constraintsData,
 		"Indexes":          indexesData,
 		"Triggers":         triggersData,
 		"ReferencedTables": referencedTables,
 	}
-}
-
-func (m *Md) makeViewpointTemplateData(v *schema.Viewpoint) (map[string]interface{}, error) {
-	number := m.config.Format.Number
-	adjust := m.config.Format.Adjust
-	showOnlyFirstParagraph := m.config.Format.ShowOnlyFirstParagraph
-	hasTableWithLabels := v.Schema.HasTableWithLabels()
-
-	data := m.makeSchemaTemplateData(v.Schema)
-	data["Name"] = v.Name
-	data["Desc"] = v.Desc
-
-	groups := []map[string]interface{}{}
-	nogroup := v.Schema.Tables
-	for _, g := range v.Groups {
-		tables, _, err := v.Schema.SeparateTablesThatAreIncludedOrNot(&schema.FilterOption{
-			Include:       g.Tables,
-			IncludeLabels: g.Labels,
-		})
-		if err != nil {
-			return nil, err
-		}
-		d := map[string]interface{}{
-			"Name":   g.Name,
-			"Desc":   g.Desc,
-			"Tables": m.tablesData(tables, number, adjust, showOnlyFirstParagraph, hasTableWithLabels),
-		}
-		groups = append(groups, d)
-		nogroup = lo.Without(nogroup, tables...)
-	}
-	if len(v.Groups) > 0 && len(nogroup) > 0 {
-		d := map[string]interface{}{
-			"Name":   "-",
-			"Desc":   "",
-			"Tables": m.tablesData(nogroup, number, adjust, showOnlyFirstParagraph, hasTableWithLabels),
-		}
-		groups = append(groups, d)
-	}
-	data["Groups"] = groups
-
-	return data, nil
 }
 
 func (m *Md) adjustColumnHeader(columnsHeader *[]string, columnsHeaderLine *[]string, hasColumn bool, name string) {
@@ -902,41 +738,6 @@ func (m *Md) enumData(enums []*schema.Enum) [][]string {
 			strings.Join(e.Values, ", "),
 		}
 		data = append(data, d)
-	}
-
-	return data
-}
-
-func (m *Md) viewpointsData(viewpoints []*schema.Viewpoint, number, adjust, showOnlyFirstParagraph bool) [][]string {
-	data := [][]string{}
-	header := []string{
-		m.config.MergedDict.Lookup("Name"),
-		m.config.MergedDict.Lookup("Description"),
-	}
-	headerLine := []string{"----", "-----------"}
-	data = append(data,
-		header,
-		headerLine,
-	)
-
-	for i, v := range viewpoints {
-		desc := v.Desc
-		if showOnlyFirstParagraph {
-			desc = output.ShowOnlyFirstParagraph(desc)
-		}
-		d := []string{
-			fmt.Sprintf("[%s](%sviewpoint-%d.md)", v.Name, m.config.BaseURL, i),
-			desc,
-		}
-		data = append(data, d)
-	}
-
-	if number {
-		data = m.addNumberToTable(data)
-	}
-
-	if adjust {
-		data = adjustTable(data)
 	}
 
 	return data

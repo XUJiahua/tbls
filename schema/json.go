@@ -14,7 +14,6 @@ type SchemaJSON struct { // nolint: revive
 	Enums      []*Enum           `json:"enums,omitempty"`
 	Driver     *DriverJSON       `json:"driver,omitempty"`
 	Labels     Labels            `json:"labels,omitempty"`
-	Viewpoints Viewpoints        `json:"viewpoints,omitempty"`
 	Inferences *SchemaInferences `json:"inferences,omitempty"`
 }
 
@@ -91,7 +90,6 @@ func (s Schema) ToJSONObject() SchemaJSON {
 		Enums:      s.Enums,
 		Driver:     s.Driver.ToJSONObject(),
 		Labels:     s.Labels,
-		Viewpoints: s.Viewpoints,
 		Inferences: s.Inferences,
 	}
 }

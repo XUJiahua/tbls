@@ -112,17 +112,10 @@ type ScaffoldConfig struct {
 	ER                     ScaffoldER                     `yaml:"er"`
 	Include                []string                       `yaml:"include,omitempty"`
 	Exclude                []string                       `yaml:"exclude,omitempty"`
-	Lint                   ScaffoldLint                   `yaml:"lint"`
-	LintExclude            []string                       `yaml:"lintExclude,omitempty"`
-	Relations              []config.AdditionalRelation    `yaml:"relations,omitempty"`
-	Comments               []config.AdditionalComment     `yaml:"comments,omitempty"`
 	DetectVirtualRelations ScaffoldDetectVirtualRelations `yaml:"detectVirtualRelations"`
 	Stats                  ScaffoldStats                  `yaml:"stats"`
 	BaseURL                string                         `yaml:"baseUrl,omitempty"`
 	RequiredVersion        string                         `yaml:"requiredVersion,omitempty"`
-	DisableOutputSchema    bool                           `yaml:"disableOutputSchema"`
-	// Viewpoints is commented out as an example
-	// viewpoints: []
 }
 
 // ScaffoldFormat represents format settings with explicit defaults.
@@ -149,99 +142,6 @@ type ScaffoldER struct {
 type ScaffoldDetectVirtualRelations struct {
 	Enabled  bool   `yaml:"enabled"`
 	Strategy string `yaml:"strategy,omitempty"`
-}
-
-// ScaffoldLint represents lint settings with all rules.
-type ScaffoldLint struct {
-	RequireTableComment      ScaffoldRequireTableComment      `yaml:"requireTableComment"`
-	RequireColumnComment     ScaffoldRequireColumnComment     `yaml:"requireColumnComment"`
-	RequireIndexComment      ScaffoldRequireIndexComment      `yaml:"requireIndexComment"`
-	RequireConstraintComment ScaffoldRequireConstraintComment `yaml:"requireConstraintComment"`
-	RequireTriggerComment    ScaffoldRequireTriggerComment    `yaml:"requireTriggerComment"`
-	RequireTableLabels       ScaffoldRequireTableLabels       `yaml:"requireTableLabels"`
-	UnrelatedTable           ScaffoldUnrelatedTable           `yaml:"unrelatedTable"`
-	ColumnCount              ScaffoldColumnCount              `yaml:"columnCount"`
-	RequireColumns           ScaffoldRequireColumns           `yaml:"requireColumns"`
-	DuplicateRelations       ScaffoldDuplicateRelations       `yaml:"duplicateRelations"`
-	RequireForeignKeyIndex   ScaffoldRequireForeignKeyIndex   `yaml:"requireForeignKeyIndex"`
-	LabelStyleBigQuery       ScaffoldLabelStyleBigQuery       `yaml:"labelStyleBigQuery"`
-	RequireViewpoints        ScaffoldRequireViewpoints        `yaml:"requireViewpoints"`
-}
-
-type ScaffoldRequireTableComment struct {
-	Enabled      bool     `yaml:"enabled"`
-	AllOrNothing bool     `yaml:"allOrNothing"`
-	Exclude      []string `yaml:"exclude,omitempty"`
-}
-
-type ScaffoldRequireColumnComment struct {
-	Enabled       bool     `yaml:"enabled"`
-	AllOrNothing  bool     `yaml:"allOrNothing"`
-	Exclude       []string `yaml:"exclude,omitempty"`
-	ExcludeTables []string `yaml:"excludeTables,omitempty"`
-}
-
-type ScaffoldRequireIndexComment struct {
-	Enabled       bool     `yaml:"enabled"`
-	AllOrNothing  bool     `yaml:"allOrNothing"`
-	Exclude       []string `yaml:"exclude,omitempty"`
-	ExcludeTables []string `yaml:"excludeTables,omitempty"`
-}
-
-type ScaffoldRequireConstraintComment struct {
-	Enabled       bool     `yaml:"enabled"`
-	AllOrNothing  bool     `yaml:"allOrNothing"`
-	Exclude       []string `yaml:"exclude,omitempty"`
-	ExcludeTables []string `yaml:"excludeTables,omitempty"`
-}
-
-type ScaffoldRequireTriggerComment struct {
-	Enabled       bool     `yaml:"enabled"`
-	AllOrNothing  bool     `yaml:"allOrNothing"`
-	Exclude       []string `yaml:"exclude,omitempty"`
-	ExcludeTables []string `yaml:"excludeTables,omitempty"`
-}
-
-type ScaffoldRequireTableLabels struct {
-	Enabled      bool     `yaml:"enabled"`
-	AllOrNothing bool     `yaml:"allOrNothing"`
-	Exclude      []string `yaml:"exclude,omitempty"`
-}
-
-type ScaffoldRequireViewpoints struct {
-	Enabled bool     `yaml:"enabled"`
-	Exclude []string `yaml:"exclude,omitempty"`
-}
-
-type ScaffoldUnrelatedTable struct {
-	Enabled      bool     `yaml:"enabled"`
-	AllOrNothing bool     `yaml:"allOrNothing"`
-	Exclude      []string `yaml:"exclude,omitempty"`
-}
-
-type ScaffoldColumnCount struct {
-	Enabled bool     `yaml:"enabled"`
-	Max     int      `yaml:"max"`
-	Exclude []string `yaml:"exclude,omitempty"`
-}
-
-type ScaffoldRequireColumns struct {
-	Enabled bool                          `yaml:"enabled"`
-	Columns []config.RequireColumnsColumn `yaml:"columns,omitempty"`
-}
-
-type ScaffoldDuplicateRelations struct {
-	Enabled bool `yaml:"enabled"`
-}
-
-type ScaffoldRequireForeignKeyIndex struct {
-	Enabled bool     `yaml:"enabled"`
-	Exclude []string `yaml:"exclude,omitempty"`
-}
-
-type ScaffoldLabelStyleBigQuery struct {
-	Enabled bool     `yaml:"enabled"`
-	Exclude []string `yaml:"exclude,omitempty"`
 }
 
 // ScaffoldStats represents stats settings with all options.
@@ -285,12 +185,6 @@ type ScaffoldTableStatsConfig struct {
 // GenerateScaffoldConfig generates a complete scaffolded config from config and schema.
 // This function is exported for use by the serve API.
 func GenerateScaffoldConfig(c *config.Config, s *schema.Schema) (*ScaffoldConfig, error) {
-	// Build comments from schema
-	comments := buildCommentsFromSchema(s, c.Comments)
-
-	// Build relations (existing + inferred)
-	relations := buildRelationsFromSchema(s, c.Relations)
-
 	// Get ER distance (default is 1)
 	erDistance := config.DefaultERDistance
 	if c.ER.Distance != nil {
@@ -319,260 +213,18 @@ func GenerateScaffoldConfig(c *config.Config, s *schema.Schema) (*ScaffoldConfig
 			Distance:        erDistance,
 			Font:            c.ER.Font,
 		},
-		Include:     c.Include,
-		Exclude:     c.Exclude,
-		LintExclude: c.LintExclude,
-		Lint: ScaffoldLint{
-			RequireTableComment: ScaffoldRequireTableComment{
-				Enabled:      c.Lint.RequireTableComment.Enabled,
-				AllOrNothing: c.Lint.RequireTableComment.AllOrNothing,
-				Exclude:      c.Lint.RequireTableComment.Exclude,
-			},
-			RequireColumnComment: ScaffoldRequireColumnComment{
-				Enabled:       c.Lint.RequireColumnComment.Enabled,
-				AllOrNothing:  c.Lint.RequireColumnComment.AllOrNothing,
-				Exclude:       c.Lint.RequireColumnComment.Exclude,
-				ExcludeTables: c.Lint.RequireColumnComment.ExcludeTables,
-			},
-			RequireIndexComment: ScaffoldRequireIndexComment{
-				Enabled:       c.Lint.RequireIndexComment.Enabled,
-				AllOrNothing:  c.Lint.RequireIndexComment.AllOrNothing,
-				Exclude:       c.Lint.RequireIndexComment.Exclude,
-				ExcludeTables: c.Lint.RequireIndexComment.ExcludeTables,
-			},
-			RequireConstraintComment: ScaffoldRequireConstraintComment{
-				Enabled:       c.Lint.RequireConstraintComment.Enabled,
-				AllOrNothing:  c.Lint.RequireConstraintComment.AllOrNothing,
-				Exclude:       c.Lint.RequireConstraintComment.Exclude,
-				ExcludeTables: c.Lint.RequireConstraintComment.ExcludeTables,
-			},
-			RequireTriggerComment: ScaffoldRequireTriggerComment{
-				Enabled:       c.Lint.RequireTriggerComment.Enabled,
-				AllOrNothing:  c.Lint.RequireTriggerComment.AllOrNothing,
-				Exclude:       c.Lint.RequireTriggerComment.Exclude,
-				ExcludeTables: c.Lint.RequireTriggerComment.ExcludeTables,
-			},
-			RequireTableLabels: ScaffoldRequireTableLabels{
-				Enabled:      c.Lint.RequireTableLabels.Enabled,
-				AllOrNothing: c.Lint.RequireTableLabels.AllOrNothing,
-				Exclude:      c.Lint.RequireTableLabels.Exclude,
-			},
-			UnrelatedTable: ScaffoldUnrelatedTable{
-				Enabled:      c.Lint.UnrelatedTable.Enabled,
-				AllOrNothing: c.Lint.UnrelatedTable.AllOrNothing,
-				Exclude:      c.Lint.UnrelatedTable.Exclude,
-			},
-			ColumnCount: ScaffoldColumnCount{
-				Enabled: c.Lint.ColumnCount.Enabled,
-				Max:     c.Lint.ColumnCount.Max,
-				Exclude: c.Lint.ColumnCount.Exclude,
-			},
-			RequireColumns: ScaffoldRequireColumns{
-				Enabled: c.Lint.RequireColumns.Enabled,
-				Columns: c.Lint.RequireColumns.Columns,
-			},
-			DuplicateRelations: ScaffoldDuplicateRelations{
-				Enabled: c.Lint.DuplicateRelations.Enabled,
-			},
-			RequireForeignKeyIndex: ScaffoldRequireForeignKeyIndex{
-				Enabled: c.Lint.RequireForeignKeyIndex.Enabled,
-				Exclude: c.Lint.RequireForeignKeyIndex.Exclude,
-			},
-			LabelStyleBigQuery: ScaffoldLabelStyleBigQuery{
-				Enabled: c.Lint.LabelStyleBigQuery.Enabled,
-				Exclude: c.Lint.LabelStyleBigQuery.Exclude,
-			},
-			RequireViewpoints: ScaffoldRequireViewpoints{
-				Enabled: c.Lint.RequireViewpoints.Enabled,
-				Exclude: c.Lint.RequireViewpoints.Exclude,
-			},
-		},
-		Relations: relations,
-		Comments:  comments,
+		Include: c.Include,
+		Exclude: c.Exclude,
 		DetectVirtualRelations: ScaffoldDetectVirtualRelations{
 			Enabled:  c.DetectVirtualRelations.Enabled,
 			Strategy: c.DetectVirtualRelations.Strategy,
 		},
-		Stats: buildStatsConfig(c, s),
-		BaseURL:             c.BaseURL,
-		RequiredVersion:     c.RequiredVersion,
-		DisableOutputSchema: c.DisableOutputSchema,
+		Stats:           buildStatsConfig(c, s),
+		BaseURL:         c.BaseURL,
+		RequiredVersion: c.RequiredVersion,
 	}
 
 	return scaffolded, nil
-}
-
-// buildCommentsFromSchema builds AdditionalComment list from schema.
-// Uses database comments if available, empty string otherwise.
-func buildCommentsFromSchema(s *schema.Schema, existingComments []config.AdditionalComment) []config.AdditionalComment {
-	// Create a map of existing comments for quick lookup
-	existingMap := make(map[string]*config.AdditionalComment)
-	for i := range existingComments {
-		existingMap[existingComments[i].Table] = &existingComments[i]
-	}
-
-	var comments []config.AdditionalComment
-
-	for _, t := range s.Tables {
-		ac := config.AdditionalComment{
-			Table:              t.Name,
-			TableComment:       t.Comment,
-			ColumnComments:     make(map[string]string),
-			IndexComments:      make(map[string]string),
-			ConstraintComments: make(map[string]string),
-			TriggerComments:    make(map[string]string),
-		}
-
-		// Check if there's an existing comment config for this table
-		if existing, ok := existingMap[t.Name]; ok {
-			// Preserve existing table comment if set
-			if existing.TableComment != "" {
-				ac.TableComment = existing.TableComment
-			}
-			// Preserve existing labels
-			ac.Labels = existing.Labels
-			ac.ColumnLabels = existing.ColumnLabels
-		}
-
-		// Columns
-		for _, c := range t.Columns {
-			comment := c.Comment
-			// Check existing config
-			if existing, ok := existingMap[t.Name]; ok {
-				if existingComment, ok := existing.ColumnComments[c.Name]; ok && existingComment != "" {
-					comment = existingComment
-				}
-			}
-			ac.ColumnComments[c.Name] = comment
-		}
-
-		// Indexes
-		for _, idx := range t.Indexes {
-			comment := idx.Comment
-			if existing, ok := existingMap[t.Name]; ok {
-				if existingComment, ok := existing.IndexComments[idx.Name]; ok && existingComment != "" {
-					comment = existingComment
-				}
-			}
-			ac.IndexComments[idx.Name] = comment
-		}
-
-		// Constraints
-		for _, cons := range t.Constraints {
-			comment := cons.Comment
-			if existing, ok := existingMap[t.Name]; ok {
-				if existingComment, ok := existing.ConstraintComments[cons.Name]; ok && existingComment != "" {
-					comment = existingComment
-				}
-			}
-			ac.ConstraintComments[cons.Name] = comment
-		}
-
-		// Triggers
-		for _, trig := range t.Triggers {
-			comment := trig.Comment
-			if existing, ok := existingMap[t.Name]; ok {
-				if existingComment, ok := existing.TriggerComments[trig.Name]; ok && existingComment != "" {
-					comment = existingComment
-				}
-			}
-			ac.TriggerComments[trig.Name] = comment
-		}
-
-		comments = append(comments, ac)
-	}
-
-	return comments
-}
-
-// buildRelationsFromSchema builds AdditionalRelation list from schema.
-// Includes existing relations from DB and infers new ones from naming patterns.
-func buildRelationsFromSchema(s *schema.Schema, existingRelations []config.AdditionalRelation) []config.AdditionalRelation {
-	// Create a set of existing relations for deduplication
-	existingSet := make(map[string]bool)
-	for _, r := range existingRelations {
-		key := relationKey(r.Table, r.Columns, r.ParentTable, r.ParentColumns)
-		existingSet[key] = true
-	}
-
-	// Also track relations already in the schema (from FK)
-	schemaRelationSet := make(map[string]bool)
-	for _, r := range s.Relations {
-		columns := make([]string, len(r.Columns))
-		for i, c := range r.Columns {
-			columns[i] = c.Name
-		}
-		parentColumns := make([]string, len(r.ParentColumns))
-		for i, c := range r.ParentColumns {
-			parentColumns[i] = c.Name
-		}
-		key := relationKey(r.Table.Name, columns, r.ParentTable.Name, parentColumns)
-		schemaRelationSet[key] = true
-	}
-
-	var relations []config.AdditionalRelation
-
-	// Keep existing config relations
-	relations = append(relations, existingRelations...)
-
-	// Infer new relations from naming patterns
-	strategy, _ := config.SelectNamingStrategy("default")
-
-	for _, t := range s.Tables {
-		for _, c := range t.Columns {
-			// Try to infer parent table from column name
-			parentTableName := strategy.ParentTableName(c.Name)
-			if parentTableName == "" {
-				continue
-			}
-
-			// Check if parent table exists
-			parentTable, err := s.FindTableByName(parentTableName)
-			if err != nil {
-				continue
-			}
-
-			// Skip self-references
-			if parentTable.Name == t.Name {
-				continue
-			}
-
-			parentColumnName := strategy.ParentColumnName(c.Name)
-
-			// Check if parent column exists
-			_, err = parentTable.FindColumnByName(parentColumnName)
-			if err != nil {
-				continue
-			}
-
-			columns := []string{c.Name}
-			parentColumns := []string{parentColumnName}
-			key := relationKey(t.Name, columns, parentTable.Name, parentColumns)
-
-			// Skip if already exists in config or schema
-			if existingSet[key] || schemaRelationSet[key] {
-				continue
-			}
-
-			// Add inferred relation
-			relations = append(relations, config.AdditionalRelation{
-				Table:         t.Name,
-				Columns:       columns,
-				ParentTable:   parentTable.Name,
-				ParentColumns: parentColumns,
-				Def:           "Inferred Relation",
-			})
-
-			existingSet[key] = true
-		}
-	}
-
-	return relations
-}
-
-// relationKey creates a unique key for a relation for deduplication.
-func relationKey(table string, columns []string, parentTable string, parentColumns []string) string {
-	return fmt.Sprintf("%s.%v->%s.%v", table, columns, parentTable, parentColumns)
 }
 
 // buildStatsConfig builds ScaffoldStats from config and schema.
@@ -713,26 +365,10 @@ func writeScaffoldOutput(outPath string, scaffolded *ScaffoldConfig, forceOverwr
 		return err
 	}
 
-	// Add header comment and viewpoints example
+	// Add header comment
 	header := "# Generated by tbls scaffold\n# This config file contains all available parameters with their current/default values.\n# Modify as needed and remove this comment.\n\n"
-	viewpointsExample := `
-# Viewpoints allow you to organize tables into logical groups.
-# Uncomment and modify the example below to define your viewpoints.
-#
-# viewpoints:
-#   - name: example-viewpoint
-#     desc: "Description of this viewpoint"
-#     tables:
-#       - table1
-#       - table2
-#     groups:
-#       - name: group1
-#         desc: "Description of this group"
-#         tables:
-#           - table1
-`
 
-	content := header + string(data) + viewpointsExample
+	content := header + string(data)
 
 	// Write file
 	if err := os.WriteFile(absPath, []byte(content), 0644); err != nil {

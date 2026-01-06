@@ -4,9 +4,7 @@
 
 ## Description
 
-TABLE A  
-  
-THIS IS TABLE A
+table a
 
 ## Labels
 
@@ -16,33 +14,26 @@ THIS IS TABLE A
 
 | Name | Type | Default | Nullable | Children | Parents | Comment |
 | ---- | ---- | ------- | -------- | -------- | ------- | ------- |
-| a | INTEGER |  | false | [b](b.md) |  | COLUMN A |
+| a | INTEGER |  | false | [b](b.md) |  | column a |
 | a2 | TEXT |  | false |  |  | column `a2` |
-
-## Viewpoints
-
-| Name | Definition |
-| ---- | ---------- |
-| [table a b](viewpoint-0.md) | select table a and b |
-| [table a label red](viewpoint-3.md) | select table a and label red<br /><br />- table a<br />- label red |
 
 ## Constraints
 
-| Name | Type | Definition | Comment |
-| ---- | ---- | ---------- | ------- |
-| PRIMARY |  | PRIMARY KEY (a) | PRIMARY KEY |
+| Name | Type | Definition |
+| ---- | ---- | ---------- |
+| PRIMARY |  | PRIMARY KEY (a) |
 
 ## Indexes
 
-| Name | Definition | Comment |
-| ---- | ---------- | ------- |
-| PRIMARY KEY | PRIMARY KEY(a) | PRIMARY |
+| Name | Definition |
+| ---- | ---------- |
+| PRIMARY KEY | PRIMARY KEY(a) |
 
 ## Triggers
 
-| Name | Definition | Comment |
-| ---- | ---------- | ------- |
-| update_a_a2 | CREATE CONSTRAINT TRIGGER update_a_a2 AFTER INSERT OR UPDATE ON a | Update a2 when a update |
+| Name | Definition |
+| ---- | ---------- |
+| update_a_a2 | CREATE CONSTRAINT TRIGGER update_a_a2 AFTER INSERT OR UPDATE ON a |
 
 ---
 

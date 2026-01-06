@@ -208,20 +208,11 @@ const docTemplate = `{
                 "baseUrl": {
                     "type": "string"
                 },
-                "comments": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/config.AdditionalComment"
-                    }
-                },
                 "desc": {
                     "type": "string"
                 },
                 "detectVirtualRelations": {
                     "$ref": "#/definitions/cmd.APIScaffoldDetectVirtualRelConfig"
-                },
-                "disableOutputSchema": {
-                    "type": "boolean"
                 },
                 "docPath": {
                     "type": "string"
@@ -253,23 +244,8 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
-                "lint": {
-                    "$ref": "#/definitions/cmd.APIScaffoldLintConfig"
-                },
-                "lintExclude": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
                 "name": {
                     "type": "string"
-                },
-                "relations": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/config.AdditionalRelation"
-                    }
                 },
                 "requiredVersion": {
                     "type": "string"
@@ -373,72 +349,6 @@ const docTemplate = `{
                 }
             }
         },
-        "cmd.APIScaffoldLintConfig": {
-            "description": "Lint rule configuration with all rules",
-            "type": "object",
-            "properties": {
-                "columnCount": {
-                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
-                },
-                "duplicateRelations": {
-                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
-                },
-                "labelStyleBigQuery": {
-                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
-                },
-                "requireColumnComment": {
-                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
-                },
-                "requireColumns": {
-                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
-                },
-                "requireConstraintComment": {
-                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
-                },
-                "requireForeignKeyIndex": {
-                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
-                },
-                "requireIndexComment": {
-                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
-                },
-                "requireTableComment": {
-                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
-                },
-                "requireTableLabels": {
-                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
-                },
-                "requireTriggerComment": {
-                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
-                },
-                "requireViewpoints": {
-                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
-                },
-                "unrelatedTable": {
-                    "$ref": "#/definitions/cmd.APIScaffoldLintRule"
-                }
-            }
-        },
-        "cmd.APIScaffoldLintRule": {
-            "description": "Single lint rule configuration",
-            "type": "object",
-            "properties": {
-                "allOrNothing": {
-                    "type": "boolean"
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "exclude": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "max": {
-                    "type": "integer"
-                }
-            }
-        },
         "cmd.APIScaffoldStatsConfig": {
             "description": "Statistics collection configuration",
             "type": "object",
@@ -519,29 +429,6 @@ const docTemplate = `{
                     "description": "TTL is the checkpoint validity duration (Go duration format)",
                     "type": "string",
                     "example": "24h"
-                }
-            }
-        },
-        "cmd.CommentConfig": {
-            "description": "Table and column comments configuration",
-            "type": "object",
-            "properties": {
-                "columnComments": {
-                    "description": "ColumnComments maps column names to their comments",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "table": {
-                    "description": "Table is the table name",
-                    "type": "string",
-                    "example": "users"
-                },
-                "tableComment": {
-                    "description": "TableComment is the comment for the table",
-                    "type": "string",
-                    "example": "User accounts table"
                 }
             }
         },
@@ -636,56 +523,6 @@ const docTemplate = `{
                 }
             }
         },
-        "cmd.RelationConfig": {
-            "description": "Table relation configuration",
-            "type": "object",
-            "properties": {
-                "cardinality": {
-                    "description": "Cardinality describes the relationship cardinality",
-                    "type": "string",
-                    "enum": [
-                        "zero or one",
-                        "exactly one",
-                        "zero or more",
-                        "one or more"
-                    ]
-                },
-                "columns": {
-                    "description": "Columns are the child table columns",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "author_id"
-                    ]
-                },
-                "def": {
-                    "description": "Def is the relation definition/description",
-                    "type": "string"
-                },
-                "parentColumns": {
-                    "description": "ParentColumns are the parent table columns",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    },
-                    "example": [
-                        "id"
-                    ]
-                },
-                "parentTable": {
-                    "description": "ParentTable is the parent table name",
-                    "type": "string",
-                    "example": "users"
-                },
-                "table": {
-                    "description": "Table is the child table name",
-                    "type": "string",
-                    "example": "posts"
-                }
-            }
-        },
         "cmd.ScaffoldRequest": {
             "description": "Request body for generating a scaffolded config",
             "type": "object",
@@ -724,13 +561,6 @@ const docTemplate = `{
                 "dsn"
             ],
             "properties": {
-                "comments": {
-                    "description": "Comments defines additional comments to add",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/cmd.CommentConfig"
-                    }
-                },
                 "desc": {
                     "description": "Desc is the database description",
                     "type": "string"
@@ -794,13 +624,6 @@ const docTemplate = `{
                 "name": {
                     "description": "Name overrides the database name",
                     "type": "string"
-                },
-                "relations": {
-                    "description": "Relations defines additional relations to add",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/cmd.RelationConfig"
-                    }
                 },
                 "stats": {
                     "description": "Stats configures statistics collection",
@@ -997,91 +820,6 @@ const docTemplate = `{
                 }
             }
         },
-        "config.AdditionalComment": {
-            "type": "object",
-            "properties": {
-                "columnComments": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "columnLabels": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "constraintComments": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "indexComments": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "labels": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "table": {
-                    "type": "string"
-                },
-                "tableComment": {
-                    "type": "string"
-                },
-                "triggerComments": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "config.AdditionalRelation": {
-            "type": "object",
-            "properties": {
-                "cardinality": {
-                    "type": "string"
-                },
-                "columns": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "def": {
-                    "type": "string"
-                },
-                "override": {
-                    "type": "boolean"
-                },
-                "parentCardinality": {
-                    "type": "string"
-                },
-                "parentColumns": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "parentTable": {
-                    "type": "string"
-                },
-                "table": {
-                    "type": "string"
-                }
-            }
-        },
         "config.DSN": {
             "type": "object",
             "properties": {
@@ -1215,12 +953,6 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/schema.Table"
-                    }
-                },
-                "viewpoints": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/schema.Viewpoint"
                     }
                 }
             }
@@ -1628,12 +1360,6 @@ const docTemplate = `{
                 },
                 "type": {
                     "type": "string"
-                },
-                "viewpoints": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/schema.TableViewpoint"
-                    }
                 }
             }
         },
@@ -1654,20 +1380,6 @@ const docTemplate = `{
                 },
                 "row_count": {
                     "type": "integer"
-                }
-            }
-        },
-        "schema.TableViewpoint": {
-            "type": "object",
-            "properties": {
-                "desc": {
-                    "type": "string"
-                },
-                "index": {
-                    "type": "integer"
-                },
-                "name": {
-                    "type": "string"
                 }
             }
         },
@@ -1693,64 +1405,6 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
-                }
-            }
-        },
-        "schema.Viewpoint": {
-            "type": "object",
-            "properties": {
-                "desc": {
-                    "type": "string"
-                },
-                "distance": {
-                    "type": "integer"
-                },
-                "groups": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/schema.ViewpointGroup"
-                    }
-                },
-                "labels": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "tables": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "schema.ViewpointGroup": {
-            "type": "object",
-            "properties": {
-                "color": {
-                    "type": "string"
-                },
-                "desc": {
-                    "type": "string"
-                },
-                "labels": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "tables": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
                 }
             }
         },

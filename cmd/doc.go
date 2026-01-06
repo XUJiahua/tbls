@@ -132,10 +132,8 @@ var docCmd = &cobra.Command{
 		}
 
 		// output schema.json
-		if !c.DisableOutputSchema {
-			if err := withSchemaFile(s, c); err != nil {
-				return err
-			}
+		if err := withSchemaFile(s, c); err != nil {
+			return err
 		}
 
 		return nil

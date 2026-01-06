@@ -4,17 +4,6 @@ docPath: dbdoc
 er:
   format: svg
   distance: 1
-comments:
-- table: a
-  tableComment: column comment required.
-  columnComments:
-    a: column comment required.
-    a2: column comment required.
-- table: b
-  tableComment: column comment required.
-  columnComments:
-    b: column comment required.
-    b2: column comment required.
 stats:
   enabled: false
   topN: 10

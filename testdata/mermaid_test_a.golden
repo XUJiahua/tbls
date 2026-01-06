@@ -3,10 +3,10 @@ erDiagram
 "b" }|--|| "a" : "FOREIGN KEY (b) REFERENCES a(a)"
 
 "a" {
-  INTEGER a
+  INTEGER a PK
   TEXT a2
 }
 "b" {
-  INTEGER b
+  INTEGER b FK
   TEXT b2
 }

@@ -23,7 +23,7 @@ CREATE VIEW view AS SELECT a, b FROM a JOIN b ON a.a = b.b
 
 | Name | Columns | Comment | Type | Labels |
 | ---- | ------- | ------- | ---- | ------ |
-| [a](a.md) | 2 | TABLE A |  | `blue` `green` |
+| [a](a.md) | 2 | table a |  | `blue` `green` |
 | [b](b.md) | 2 | table b |  | `red` `green` |
 
 ---

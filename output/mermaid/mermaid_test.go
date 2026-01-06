@@ -63,7 +63,7 @@ func TestOutputSchemaTemplate(t *testing.T) {
 	}
 	// use the templates in the testdata directory
 	c.Templates.Mermaid.Schema = filepath.Join(testdataDir(), c.Templates.Mermaid.Schema)
-	if err := c.MergeAdditionalData(s); err != nil {
+	if err := c.ModifySchema(s); err != nil {
 		t.Error(err)
 	}
 	o := New(c)
@@ -90,7 +90,7 @@ func TestOutputTable(t *testing.T) {
 	if err := c.LoadConfigFile(filepath.Join(testdataDir(), "out_test_tbls.yml")); err != nil {
 		t.Error(err)
 	}
-	if err := c.MergeAdditionalData(s); err != nil {
+	if err := c.ModifySchema(s); err != nil {
 		t.Error(err)
 	}
 	ta := s.Tables[0]

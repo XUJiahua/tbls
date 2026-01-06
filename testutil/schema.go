@@ -140,49 +140,6 @@ func NewSchema(t *testing.T) *schema.Schema {
 		Relations: []*schema.Relation{
 			r,
 		},
-		Viewpoints: schema.Viewpoints{
-			&schema.Viewpoint{
-				Name: "table a b",
-				Desc: "select table a and b",
-				Tables: []string{
-					tableAName,
-					tableBName,
-				},
-			},
-			&schema.Viewpoint{
-				Name: "label blue",
-				Desc: "select label blue",
-				Labels: []string{
-					labelBlueName,
-				},
-			},
-			&schema.Viewpoint{
-				Name: "label green",
-				Desc: "select label green",
-				Labels: []string{
-					labelGreenName,
-				},
-				Groups: []*schema.ViewpointGroup{
-					&schema.ViewpointGroup{
-						Name: "label red",
-						Desc: "select label red",
-						Labels: []string{
-							labelRedName,
-						},
-					},
-				},
-			},
-			&schema.Viewpoint{
-				Name: "table a label red",
-				Desc: "select table a and label red\n\n- table a\n- label red",
-				Tables: []string{
-					tableAName,
-				},
-				Labels: []string{
-					labelRedName,
-				},
-			},
-		},
 		Driver: &schema.Driver{
 			Name:            "testdriver",
 			DatabaseVersion: "1.0.0",

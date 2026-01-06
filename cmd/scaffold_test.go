@@ -41,7 +41,7 @@ func TestGenerateScaffoldConfig(t *testing.T) {
 				Comment: "",
 				Columns: []*schema.Column{
 					{Name: "id", Comment: ""},
-					{Name: "user_id", Comment: ""}, // Should infer relation to users.id
+					{Name: "user_id", Comment: ""},
 					{Name: "title", Comment: "Post title"},
 				},
 			},
@@ -75,107 +75,16 @@ func TestGenerateScaffoldConfig(t *testing.T) {
 		t.Errorf("ER.Distance mismatch: got %d, want 1", scaffolded.ER.Distance)
 	}
 
-	// Verify comments were generated for all tables
-	if len(scaffolded.Comments) != 2 {
-		t.Errorf("Comments count mismatch: got %d, want 2", len(scaffolded.Comments))
+	// Verify Stats defaults
+	if scaffolded.Stats.TopN != 10 {
+		t.Errorf("Stats.TopN mismatch: got %d, want 10", scaffolded.Stats.TopN)
+	}
+	if scaffolded.Stats.SampleSize != 10000 {
+		t.Errorf("Stats.SampleSize mismatch: got %d, want 10000", scaffolded.Stats.SampleSize)
 	}
 
-	// Verify first table comments
-	usersComment := scaffolded.Comments[0]
-	if usersComment.Table != "users" {
-		t.Errorf("First table name mismatch: got %s, want users", usersComment.Table)
-	}
-	if usersComment.TableComment != "Users table" {
-		t.Errorf("Table comment mismatch: got %s, want 'Users table'", usersComment.TableComment)
-	}
-	if len(usersComment.ColumnComments) != 3 {
-		t.Errorf("Column comments count mismatch: got %d, want 3", len(usersComment.ColumnComments))
-	}
-	if usersComment.ColumnComments["id"] != "Primary key" {
-		t.Errorf("Column comment for 'id' mismatch: got %s, want 'Primary key'", usersComment.ColumnComments["id"])
-	}
-	if usersComment.ColumnComments["name"] != "" {
-		t.Errorf("Column comment for 'name' should be empty, got %s", usersComment.ColumnComments["name"])
-	}
-
-	// Verify inferred relations
-	foundUserIdRelation := false
-	for _, r := range scaffolded.Relations {
-		if r.Table == "posts" && len(r.Columns) == 1 && r.Columns[0] == "user_id" &&
-			r.ParentTable == "users" && len(r.ParentColumns) == 1 && r.ParentColumns[0] == "id" {
-			foundUserIdRelation = true
-			if r.Def != "Inferred Relation" {
-				t.Errorf("Inferred relation Def mismatch: got %s, want 'Inferred Relation'", r.Def)
-			}
-			break
-		}
-	}
-	if !foundUserIdRelation {
-		t.Error("Expected inferred relation posts.user_id -> users.id not found")
-	}
-}
-
-func TestBuildCommentsFromSchema(t *testing.T) {
-	s := &schema.Schema{
-		Tables: []*schema.Table{
-			{
-				Name:    "users",
-				Comment: "DB Comment",
-				Columns: []*schema.Column{
-					{Name: "id", Comment: "ID Column"},
-					{Name: "name", Comment: ""},
-				},
-			},
-		},
-	}
-
-	// Test without existing comments
-	comments := buildCommentsFromSchema(s, nil)
-	if len(comments) != 1 {
-		t.Fatalf("Expected 1 comment, got %d", len(comments))
-	}
-	if comments[0].TableComment != "DB Comment" {
-		t.Errorf("TableComment mismatch: got %s, want 'DB Comment'", comments[0].TableComment)
-	}
-	if comments[0].ColumnComments["id"] != "ID Column" {
-		t.Errorf("Column id comment mismatch: got %s, want 'ID Column'", comments[0].ColumnComments["id"])
-	}
-	if comments[0].ColumnComments["name"] != "" {
-		t.Errorf("Column name comment should be empty, got %s", comments[0].ColumnComments["name"])
-	}
-
-	// Test with existing comments that override
-	existingComments := []config.AdditionalComment{
-		{
-			Table:        "users",
-			TableComment: "Override Comment",
-			ColumnComments: map[string]string{
-				"name": "Override Name",
-			},
-		},
-	}
-	comments = buildCommentsFromSchema(s, existingComments)
-	if comments[0].TableComment != "Override Comment" {
-		t.Errorf("TableComment should be overridden: got %s, want 'Override Comment'", comments[0].TableComment)
-	}
-	if comments[0].ColumnComments["name"] != "Override Name" {
-		t.Errorf("Column name comment should be overridden: got %s, want 'Override Name'", comments[0].ColumnComments["name"])
-	}
-	// DB comment should still be used for non-overridden columns
-	if comments[0].ColumnComments["id"] != "ID Column" {
-		t.Errorf("Column id comment should come from DB: got %s, want 'ID Column'", comments[0].ColumnComments["id"])
-	}
-}
-
-func TestRelationKey(t *testing.T) {
-	key1 := relationKey("posts", []string{"user_id"}, "users", []string{"id"})
-	key2 := relationKey("posts", []string{"user_id"}, "users", []string{"id"})
-	key3 := relationKey("comments", []string{"post_id"}, "posts", []string{"id"})
-
-	if key1 != key2 {
-		t.Errorf("Same relation should produce same key: got %s and %s", key1, key2)
-	}
-	if key1 == key3 {
-		t.Errorf("Different relations should produce different keys: got %s and %s", key1, key3)
+	// Verify tables map
+	if len(scaffolded.Stats.Tables) != 2 {
+		t.Errorf("Stats.Tables count mismatch: got %d, want 2", len(scaffolded.Stats.Tables))
 	}
 }

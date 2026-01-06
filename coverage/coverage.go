@@ -3,7 +3,6 @@ package coverage
 import (
 	"math"
 
-	"github.com/k1LoW/tbls/output/config"
 	"github.com/k1LoW/tbls/schema"
 )
 
@@ -42,7 +41,7 @@ func Measure(s *schema.Schema) *Coverage {
 
 		cover.Total++
 		tcover.Total++
-		if t.Comment != "" && t.Comment != config.NoTableComment {
+		if t.Comment != "" {
 			cover.Covered++
 			tcover.Covered++
 		}
@@ -50,7 +49,7 @@ func Measure(s *schema.Schema) *Coverage {
 		for _, c := range t.Columns {
 			cover.Total++
 			tcover.Total++
-			if c.Comment != "" && c.Comment != config.NoColumnComment {
+			if c.Comment != "" {
 				cover.Covered++
 				tcover.Covered++
 			}

@@ -32,7 +32,7 @@ func TestOutputSchema(t *testing.T) {
 			if err := c.LoadConfigFile(filepath.Join(testdataDir(), "out_test_tbls.yml")); err != nil {
 				t.Fatal(err)
 			}
-			if err := c.MergeAdditionalData(s); err != nil {
+			if err := c.ModifySchema(s); err != nil {
 				t.Fatal(err)
 			}
 			o := New(c)
@@ -72,7 +72,7 @@ func TestOutputTable(t *testing.T) {
 			if err := c.LoadConfigFile(filepath.Join(testdataDir(), "out_test_tbls.yml")); err != nil {
 				t.Error(err)
 			}
-			if err := c.MergeAdditionalData(s); err != nil {
+			if err := c.ModifySchema(s); err != nil {
 				t.Error(err)
 			}
 			ta := s.Tables[0]
