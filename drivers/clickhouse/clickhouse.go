@@ -1,6 +1,7 @@
 package clickhouse
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"regexp"
@@ -38,8 +39,8 @@ func New(db *sql.DB) *ClickHouse {
 	}
 }
 
-// Analyze PostgreSQL database schema.
-func (ch *ClickHouse) Analyze(s *schema.Schema) error {
+// Analyze ClickHouse database schema.
+func (ch *ClickHouse) Analyze(ctx context.Context, s *schema.Schema) error {
 	d, err := ch.Info()
 	if err != nil {
 		return errors.WithStack(err)
@@ -54,7 +55,7 @@ func (ch *ClickHouse) Analyze(s *schema.Schema) error {
 	tableSamplingKeys := make(map[string]*schema.Constraint)
 	var filtered []string
 
-	tableRows, err := ch.db.Query(`
+	tableRows, err := ch.db.QueryContext(ctx, `
 SELECT
     uuid,
     name,
@@ -162,7 +163,7 @@ WHERE database = ?
 	}
 
 	// columns
-	columnRows, err := ch.db.Query(`
+	columnRows, err := ch.db.QueryContext(ctx, `
 SELECT
     table,
     name,
@@ -277,7 +278,7 @@ ORDER BY table
 	}
 
 	// indices
-	indexRows, err := ch.db.Query(`
+	indexRows, err := ch.db.QueryContext(ctx, `
 SELECT
     table,
     name,
@@ -323,7 +324,7 @@ ORDER BY table
 	}
 
 	// functions
-	functionRows, err := ch.db.Query(`
+	functionRows, err := ch.db.QueryContext(ctx, `
 SELECT
     name,
     create_query,

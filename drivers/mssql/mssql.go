@@ -1,6 +1,7 @@
 package mssql
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"regexp"
@@ -37,7 +38,7 @@ func New(db *sql.DB) *Mssql {
 	}
 }
 
-func (m *Mssql) Analyze(s *schema.Schema) error {
+func (m *Mssql) Analyze(ctx context.Context, s *schema.Schema) error {
 	d, err := m.Info()
 	if err != nil {
 		return errors.WithStack(err)
@@ -45,7 +46,7 @@ func (m *Mssql) Analyze(s *schema.Schema) error {
 	s.Driver = d
 
 	// tables and comments
-	tableRows, err := m.db.Query(`
+	tableRows, err := m.db.QueryContext(ctx, `
 SELECT schema_name(schema_id) AS table_schema, o.name, o.object_id, o.type, cast(e.value as NVARCHAR(MAX)) AS table_comment
 FROM sys.objects AS o
 LEFT JOIN sys.extended_properties AS e ON
@@ -87,7 +88,7 @@ WHERE type IN ('U', 'V')  ORDER BY OBJECT_ID
 
 		// view definition
 		if tableType == "VIEW" {
-			viewDefRows, err := m.db.Query(`
+			viewDefRows, err := m.db.QueryContext(ctx, `
 SELECT definition FROM sys.sql_modules WHERE object_id = @p1
 `, tableOid)
 			if err != nil {
@@ -105,7 +106,7 @@ SELECT definition FROM sys.sql_modules WHERE object_id = @p1
 		}
 
 		// columns and comments
-		columnRows, err := m.db.Query(`
+		columnRows, err := m.db.QueryContext(ctx, `
 SELECT
   c.name,
   t.name AS type,
@@ -156,7 +157,7 @@ ORDER BY c.column_id
 		// constraints
 		constraints := []*schema.Constraint{}
 		/// key constraints
-		keyRows, err := m.db.Query(`
+		keyRows, err := m.db.QueryContext(ctx, `
 SELECT
   c.name,
   i.type_desc,
@@ -223,7 +224,7 @@ ORDER BY i.index_id
 		}
 
 		/// foreign_keys
-		fkRows, err := m.db.Query(`
+		fkRows, err := m.db.QueryContext(ctx, `
 SELECT
   f.name AS f_name,
   OBJECT_NAME(f.parent_object_id) AS table_name,
@@ -293,7 +294,7 @@ ORDER BY f.name
 		}
 
 		/// check_constraints
-		checkRows, err := m.db.Query(`
+		checkRows, err := m.db.QueryContext(ctx, `
 SELECT name, definition, is_system_named
 FROM sys.check_constraints
 WHERE parent_object_id = object_id(@p1)
@@ -324,7 +325,7 @@ WHERE parent_object_id = object_id(@p1)
 		table.Constraints = constraints
 
 		// triggers
-		triggerRows, err := m.db.Query(`
+		triggerRows, err := m.db.QueryContext(ctx, `
 SELECT name, definition
 FROM sys.triggers AS t
 INNER JOIN sys.sql_modules AS sm
@@ -356,7 +357,7 @@ AND parent_id = object_id(@p1)
 		table.Triggers = triggers
 
 		// indexes
-		indexRows, err := m.db.Query(`
+		indexRows, err := m.db.QueryContext(ctx, `
 SELECT
   i.name AS index_name,
   i.type_desc,
@@ -428,7 +429,7 @@ ORDER BY i.index_id
 		tables = append(tables, table)
 	}
 
-	functions, err := m.getFunctions()
+	functions, err := m.getFunctions(ctx)
 	if err != nil {
 		return err
 	}
@@ -516,9 +517,9 @@ LEFT JOIN sys.parameters ret
 WHERE obj.type IN ('FN', 'TF', 'IF', 'P', 'X')
 ORDER BY schema_name, name;`
 
-func (m *Mssql) getFunctions() ([]*schema.Function, error) {
+func (m *Mssql) getFunctions(ctx context.Context) ([]*schema.Function, error) {
 	functions := []*schema.Function{}
-	functionsResult, err := m.db.Query(query)
+	functionsResult, err := m.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

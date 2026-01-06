@@ -36,7 +36,7 @@ func New(ctx context.Context, client *mongo.Client, dbName string, sampleSize in
 	}, nil
 }
 
-func (m *Mongodb) Analyze(s *schema.Schema) error {
+func (m *Mongodb) Analyze(ctx context.Context, s *schema.Schema) error {
 	drv, err := m.Info()
 	if err != nil {
 		return errors.WithStack(err)
@@ -45,21 +45,21 @@ func (m *Mongodb) Analyze(s *schema.Schema) error {
 
 	tables := []*schema.Table{}
 	dbValue := m.client.Database(m.dbName)
-	colls, err := dbValue.ListCollectionSpecifications(m.ctx, bson.D{})
+	colls, err := dbValue.ListCollectionSpecifications(ctx, bson.D{})
 	if err != nil {
 		return err
 	}
 	for _, coll := range colls {
 		colVal := dbValue.Collection(coll.Name)
-		indexes, err := m.listIndexes(colVal)
+		indexes, err := m.listIndexes(ctx, colVal)
 		if err != nil {
 			return err
 		}
-		estimated, err := colVal.EstimatedDocumentCount(m.ctx)
+		estimated, err := colVal.EstimatedDocumentCount(ctx)
 		if err != nil {
 			return err
 		}
-		columns, err := m.listFields(colVal)
+		columns, err := m.listFields(ctx, colVal)
 		if err != nil {
 			return err
 		}
@@ -80,16 +80,16 @@ func (m *Mongodb) Analyze(s *schema.Schema) error {
 	return nil
 }
 
-func (m *Mongodb) listFields(collection *mongo.Collection) ([]*schema.Column, error) {
+func (m *Mongodb) listFields(ctx context.Context, collection *mongo.Collection) ([]*schema.Column, error) {
 	pipeline := []bson.D{{{Key: "$sample", Value: bson.D{{Key: "size", Value: m.sampleSize}}}}}
-	cursor, err := collection.Aggregate(m.ctx, pipeline)
+	cursor, err := collection.Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
 	columns := []*schema.Column{}
 	total := 0.0
 	occurrences := map[string]float64{}
-	for cursor.Next(m.ctx) {
+	for cursor.Next(ctx) {
 		var result bson.D
 		if err := cursor.Decode(&result); err != nil {
 			return columns, err
@@ -175,9 +175,9 @@ func addColumnType(list []*schema.Column, columnName, valueType string) []*schem
 	return columns
 }
 
-func (m *Mongodb) listIndexes(collection *mongo.Collection) ([]*schema.Index, error) {
+func (m *Mongodb) listIndexes(ctx context.Context, collection *mongo.Collection) ([]*schema.Index, error) {
 	indexes := []*schema.Index{}
-	indexSpec, err := collection.Indexes().ListSpecifications(m.ctx)
+	indexSpec, err := collection.Indexes().ListSpecifications(ctx)
 	if err != nil {
 		return nil, err
 	}

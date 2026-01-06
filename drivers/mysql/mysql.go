@@ -1,6 +1,7 @@
 package mysql
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"regexp"
@@ -67,7 +68,7 @@ func New(db *sql.DB, opts ...drivers.Option) (*Mysql, error) {
 }
 
 // Analyze MySQL database schema.
-func (m *Mysql) Analyze(s *schema.Schema) error {
+func (m *Mysql) Analyze(ctx context.Context, s *schema.Schema) error {
 	d, err := m.Info()
 	if err != nil {
 		return errors.WithStack(err)
@@ -116,7 +117,7 @@ func (m *Mysql) Analyze(s *schema.Schema) error {
 	}
 
 	// bulk get indexes
-	indexRows, err := m.db.Query(`
+	indexRows, err := m.db.QueryContext(ctx, `
 SELECT
 s.table_name,
 (CASE WHEN s.index_name='PRIMARY' AND s.non_unique=0 THEN 'PRIMARY KEY'
@@ -166,7 +167,7 @@ GROUP BY s.table_name, key_type, s.table_name, s.index_name, s.index_type`, s.Na
 	}
 
 	// bulk get triggers
-	triggerRows, err := m.db.Query(`
+	triggerRows, err := m.db.QueryContext(ctx, `
 SELECT
   event_object_table,
   trigger_name,
@@ -217,7 +218,7 @@ SELECT table_name, column_name, column_default, is_nullable, column_type, column
 FROM information_schema.columns
 WHERE table_schema = ? ORDER BY table_name, ordinal_position`
 	}
-	columnRows, err := m.db.Query(columnStmt, s.Name)
+	columnRows, err := m.db.QueryContext(ctx, columnStmt, s.Name)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -269,7 +270,7 @@ WHERE table_schema = ? ORDER BY table_name, ordinal_position`
 	}
 
 	// tables and comments
-	tableRows, err := m.db.Query(m.queryForTables(), s.Name)
+	tableRows, err := m.db.QueryContext(ctx, m.queryForTables(), s.Name)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -299,7 +300,7 @@ WHERE table_schema = ? ORDER BY table_name, ordinal_position`
 
 		// table definition
 		if tableType == "BASE TABLE" {
-			tableDefRows, err := m.db.Query(fmt.Sprintf("SHOW CREATE TABLE `%s`", tableName))
+			tableDefRows, err := m.db.QueryContext(ctx, fmt.Sprintf("SHOW CREATE TABLE `%s`", tableName))
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -327,7 +328,7 @@ WHERE table_schema = ? ORDER BY table_name, ordinal_position`
 
 		// view definition
 		if tableType == "VIEW" {
-			viewDefRows, err := m.db.Query(`
+			viewDefRows, err := m.db.QueryContext(ctx, `
 SELECT view_definition FROM information_schema.views
 WHERE table_schema = ?
 AND table_name = ?;
@@ -362,7 +363,7 @@ AND table_name = ?;
 	}
 
 	// bulk get constraints (PRIMARY KEY, UNIQUE, FOREIGN KEY)
-	constraintRows, err := m.db.Query(`
+	constraintRows, err := m.db.QueryContext(ctx, `
 SELECT
   kcu.table_name,
   kcu.constraint_name,
@@ -451,7 +452,7 @@ GROUP BY kcu.table_name, kcu.constraint_name, sub.constraint_type, kcu.reference
 
 	// bulk get constraints (CHECK)
 	if supportCheckConstraint {
-		constraintRows, err := m.db.Query(`
+		constraintRows, err := m.db.QueryContext(ctx, `
 SELECT
   t.table_name,
   c.constraint_name,
@@ -485,7 +486,7 @@ WHERE t.table_schema = ?
 		}
 	}
 
-	functions, err := m.getFunctions()
+	functions, err := m.getFunctions(ctx)
 	if err != nil {
 		return err
 	}
@@ -558,9 +559,9 @@ LEFT JOIN information_schema.parameters p
 WHERE routine_schema NOT IN ('sys', 'information_schema', 'mysql', 'performance_schema')
 GROUP BY r.routine_schema, r.routine_name, r.routine_type, r.data_type, r.routine_definition`
 
-func (m *Mysql) getFunctions() ([]*schema.Function, error) {
+func (m *Mysql) getFunctions(ctx context.Context) ([]*schema.Function, error) {
 	functions := []*schema.Function{}
-	functionsResult, err := m.db.Query(queryFunctions)
+	functionsResult, err := m.db.QueryContext(ctx, queryFunctions)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}

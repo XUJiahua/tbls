@@ -1,6 +1,7 @@
 package snowflake
 
 import (
+	"context"
 	"database/sql"
 
 	"github.com/k1LoW/errors"
@@ -20,14 +21,14 @@ func New(db *sql.DB) *Snowflake {
 	}
 }
 
-func (sf *Snowflake) Analyze(s *schema.Schema) error {
+func (sf *Snowflake) Analyze(ctx context.Context, s *schema.Schema) error {
 	d, err := sf.Info()
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	s.Driver = d
 
-	tableRows, err := sf.db.Query(`SELECT table_name, table_type, comment FROM information_schema.tables WHERE table_schema = ? order by table_name`, s.Name)
+	tableRows, err := sf.db.QueryContext(ctx, `SELECT table_name, table_type, comment FROM information_schema.tables WHERE table_schema = ? order by table_name`, s.Name)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -58,7 +59,7 @@ func (sf *Snowflake) Analyze(s *schema.Schema) error {
 			getDDLObjectType = "view"
 		}
 		if getDDLObjectType != "" {
-			tableDefRows, err := sf.db.Query(`SELECT GET_DDL(?, ?)`, getDDLObjectType, tableName)
+			tableDefRows, err := sf.db.QueryContext(ctx, `SELECT GET_DDL(?, ?)`, getDDLObjectType, tableName)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -74,7 +75,7 @@ func (sf *Snowflake) Analyze(s *schema.Schema) error {
 		}
 
 		// columns, comments
-		columnRows, err := sf.db.Query(`select column_name, column_default, is_nullable, data_type, comment
+		columnRows, err := sf.db.QueryContext(ctx, `select column_name, column_default, is_nullable, data_type, comment
 from information_schema.columns
 where table_schema = ? and table_name = ? order by ordinal_position`, s.Name, tableName)
 		if err != nil {
@@ -120,7 +121,7 @@ where table_schema = ? and table_name = ? order by ordinal_position`, s.Name, ta
 
 func (sf *Snowflake) Info() (*schema.Driver, error) {
 	var v string
-	row := sf.db.QueryRow(`SELECT CURRENT_VERSION();`)
+	row := sf.db.QueryRowContext(context.Background(), `SELECT CURRENT_VERSION();`)
 	if err := row.Scan(&v); err != nil {
 		return nil, err
 	}

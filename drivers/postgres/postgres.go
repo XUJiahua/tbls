@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"regexp"
@@ -32,7 +33,7 @@ func New(db *sql.DB) *Postgres {
 }
 
 // Analyze PostgreSQL database schema.
-func (p *Postgres) Analyze(s *schema.Schema) (err error) {
+func (p *Postgres) Analyze(ctx context.Context, s *schema.Schema) (err error) {
 	defer func() {
 		err = errors.WithStack(err)
 	}()
@@ -44,7 +45,7 @@ func (p *Postgres) Analyze(s *schema.Schema) (err error) {
 
 	// current schema
 	var currentSchema sql.NullString
-	schemaRows, err := p.db.Query(`SELECT current_schema()`)
+	schemaRows, err := p.db.QueryContext(ctx, `SELECT current_schema()`)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -62,7 +63,7 @@ func (p *Postgres) Analyze(s *schema.Schema) (err error) {
 
 	// search_path
 	var searchPaths string
-	pathRows, err := p.db.Query(`SHOW search_path`)
+	pathRows, err := p.db.QueryContext(ctx, `SHOW search_path`)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -78,7 +79,7 @@ func (p *Postgres) Analyze(s *schema.Schema) (err error) {
 	for idx, path := range splitPaths {
 		if path == `"$user"` {
 			var userName string
-			userNameRows, err := p.db.Query(`SELECT current_user`)
+			userNameRows, err := p.db.QueryContext(ctx, `SELECT current_user`)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -98,7 +99,7 @@ func (p *Postgres) Analyze(s *schema.Schema) (err error) {
 	fullTableNames := []string{}
 
 	// tables
-	tableRows, err := p.db.Query(`
+	tableRows, err := p.db.QueryContext(ctx, `
 SELECT
     cls.oid AS oid,
     cls.relname AS table_name,
@@ -149,7 +150,7 @@ ORDER BY oid`)
 
 		// (materialized) view definition
 		if tableType == "VIEW" || tableType == "MATERIALIZED VIEW" {
-			viewDefRows, err := p.db.Query(`SELECT pg_get_viewdef($1::oid);`, tableOid)
+			viewDefRows, err := p.db.QueryContext(ctx, `SELECT pg_get_viewdef($1::oid);`, tableOid)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -165,7 +166,7 @@ ORDER BY oid`)
 		}
 
 		// constraints
-		constraintRows, err := p.db.Query(p.queryForConstraints(), tableOid)
+		constraintRows, err := p.db.QueryContext(ctx, p.queryForConstraints(), tableOid)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -212,7 +213,7 @@ ORDER BY oid`)
 
 		// triggers
 		if !p.rsMode {
-			triggerRows, err := p.db.Query(`
+			triggerRows, err := p.db.QueryContext(ctx, `
 SELECT tgname, pg_get_triggerdef(trig.oid), descr.description AS comment
 FROM pg_trigger AS trig
 LEFT JOIN pg_description AS descr ON trig.oid = descr.objoid
@@ -251,7 +252,7 @@ ORDER BY tgrelid
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		columnRows, err := p.db.Query(columnStmt, tableOid)
+		columnRows, err := p.db.QueryContext(ctx, columnStmt, tableOid)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -290,7 +291,7 @@ ORDER BY tgrelid
 		table.Columns = columns
 
 		// indexes
-		indexRows, err := p.db.Query(p.queryForIndexes(), tableOid)
+		indexRows, err := p.db.QueryContext(ctx, p.queryForIndexes(), tableOid)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -323,14 +324,14 @@ ORDER BY tgrelid
 		tables = append(tables, table)
 	}
 
-	functions, err := p.getFunctions()
+	functions, err := p.getFunctions(ctx)
 	if err != nil {
 		return err
 	}
 	s.Functions = functions
 
 	// Enums
-	enums, err := p.getEnums()
+	enums, err := p.getEnums(ctx)
 	if err != nil {
 		return err
 	}
@@ -423,8 +424,8 @@ const queryStoredProcedureSupported = `SELECT column_name
 FROM information_schema.columns
 WHERE table_name='pg_proc' and column_name='prokind';`
 
-func (p *Postgres) isProceduresSupported() (bool, error) {
-	result, err := p.db.Query(queryStoredProcedureSupported)
+func (p *Postgres) isProceduresSupported(ctx context.Context) (bool, error) {
+	result, err := p.db.QueryContext(ctx, queryStoredProcedureSupported)
 	if err != nil {
 		return false, errors.WithStack(err)
 	}
@@ -443,9 +444,9 @@ func (p *Postgres) isProceduresSupported() (bool, error) {
 	return false, nil
 }
 
-func (p *Postgres) getFunctions() ([]*schema.Function, error) {
+func (p *Postgres) getFunctions(ctx context.Context) ([]*schema.Function, error) {
 	var functions []*schema.Function
-	storedProcedureSupported, err := p.isProceduresSupported()
+	storedProcedureSupported, err := p.isProceduresSupported(ctx)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -454,12 +455,12 @@ func (p *Postgres) getFunctions() ([]*schema.Function, error) {
 		return functions, nil
 	}
 	if storedProcedureSupported {
-		functions, err = p.getFunctionsByQuery(queryFunctions)
+		functions, err = p.getFunctionsByQuery(ctx, queryFunctions)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
 	} else {
-		functions, err = p.getFunctionsByQuery(queryFunctions95)
+		functions, err = p.getFunctionsByQuery(ctx, queryFunctions95)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}
@@ -467,9 +468,9 @@ func (p *Postgres) getFunctions() ([]*schema.Function, error) {
 	return functions, nil
 }
 
-func (p *Postgres) getFunctionsByQuery(query string) ([]*schema.Function, error) {
+func (p *Postgres) getFunctionsByQuery(ctx context.Context, query string) ([]*schema.Function, error) {
 	functions := []*schema.Function{}
-	functionsResult, err := p.db.Query(query)
+	functionsResult, err := p.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -499,7 +500,7 @@ func (p *Postgres) getFunctionsByQuery(query string) ([]*schema.Function, error)
 	return functions, nil
 }
 
-func (p *Postgres) getEnums() ([]*schema.Enum, error) {
+func (p *Postgres) getEnums(ctx context.Context) ([]*schema.Enum, error) {
 	enums := []*schema.Enum{}
 
 	// Amazon RedShift does not support enum
@@ -507,7 +508,7 @@ func (p *Postgres) getEnums() ([]*schema.Enum, error) {
 		return enums, nil
 	}
 
-	enumsResult, err := p.db.Query(`SELECT n.nspname, t.typname AS enum_name, ARRAY_AGG(e.enumlabel) AS enum_values
+	enumsResult, err := p.db.QueryContext(ctx, `SELECT n.nspname, t.typname AS enum_name, ARRAY_AGG(e.enumlabel) AS enum_values
 											FROM pg_type t, pg_enum e, pg_catalog.pg_namespace n
 											WHERE t.typcategory = 'E'
 											  AND t.oid = e.enumtypid

@@ -48,7 +48,7 @@ func New(ctx context.Context, client *dynamodb.Client) (*Dynamodb, error) {
 	}, nil
 }
 
-func (d *Dynamodb) Analyze(s *schema.Schema) error {
+func (d *Dynamodb) Analyze(ctx context.Context, s *schema.Schema) error {
 	drv, err := d.Info()
 	if err != nil {
 		return errors.WithStack(err)
@@ -61,7 +61,7 @@ func (d *Dynamodb) Analyze(s *schema.Schema) error {
 	tables := []*schema.Table{}
 	tableType := "BASIC TABLE"
 	for {
-		list, err := d.client.ListTables(d.ctx, input)
+		list, err := d.client.ListTables(ctx, input)
 		if err != nil {
 			return err
 		}
@@ -70,7 +70,7 @@ func (d *Dynamodb) Analyze(s *schema.Schema) error {
 			input := &dynamodb.DescribeTableInput{
 				TableName: &t,
 			}
-			desc, err := d.client.DescribeTable(d.ctx, input)
+			desc, err := d.client.DescribeTable(ctx, input)
 			if err != nil {
 				return err
 			}

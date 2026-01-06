@@ -62,7 +62,7 @@ func AnalyzeMongodb(urlstr string) (*schema.Schema, error) {
 		return s, err
 	}
 
-	err = driver.Analyze(s)
+	err = driver.Analyze(ctx, s)
 	if err != nil {
 		return s, err
 	}

@@ -29,7 +29,7 @@ func New(ctx context.Context, client *bigquery.Client, datasetID string) (*Bigqu
 	}, nil
 }
 
-func (b *Bigquery) Analyze(s *schema.Schema) error {
+func (b *Bigquery) Analyze(ctx context.Context, s *schema.Schema) error {
 	d, err := b.Info()
 	if err != nil {
 		return errors.WithStack(err)
@@ -37,7 +37,7 @@ func (b *Bigquery) Analyze(s *schema.Schema) error {
 	s.Driver = d
 
 	ds := b.client.Dataset(b.datasetID)
-	m, err := ds.Metadata(b.ctx)
+	m, err := ds.Metadata(ctx)
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func (b *Bigquery) Analyze(s *schema.Schema) error {
 	}
 	sort.SliceStable(s.Labels, func(i, j int) bool { return s.Labels[i].Name < s.Labels[j].Name })
 
-	bt := ds.Tables(b.ctx)
+	bt := ds.Tables(ctx)
 
 	// tables
 	tables := []*schema.Table{}
@@ -59,7 +59,7 @@ func (b *Bigquery) Analyze(s *schema.Schema) error {
 			}
 			return err
 		}
-		m, err := t.Metadata(b.ctx)
+		m, err := t.Metadata(ctx)
 		if err != nil {
 			return err
 		}

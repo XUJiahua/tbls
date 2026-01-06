@@ -30,7 +30,7 @@ type interleave struct {
 	onDeleteAction  string
 }
 
-func (sp *Spanner) Analyze(s *schema.Schema) error {
+func (sp *Spanner) Analyze(ctx context.Context, s *schema.Schema) error {
 	d, err := sp.Info()
 	if err != nil {
 		return errors.WithStack(err)
@@ -46,7 +46,7 @@ FROM
 WHERE
   TABLE_CATALOG = '' AND TABLE_SCHEMA = '';
 `}
-	tableIter := sp.client.Single().Query(sp.ctx, tableStmt)
+	tableIter := sp.client.Single().Query(ctx, tableStmt)
 	defer tableIter.Stop()
 
 	tables := []*schema.Table{}
@@ -95,7 +95,7 @@ ORDER BY ORDINAL_POSITION ASC;
 `,
 			Params: map[string]interface{}{"tableName": tableName},
 		}
-		columnIter := sp.client.Single().Query(sp.ctx, columnStmt)
+		columnIter := sp.client.Single().Query(ctx, columnStmt)
 		columns := []*schema.Column{}
 		for {
 			columnRow, err := columnIter.Next()
@@ -135,7 +135,7 @@ WHERE
 `,
 				Params: map[string]interface{}{"tableName": tableName, "columnName": columnName},
 			}
-			optionIter := sp.client.Single().Query(sp.ctx, optionStmt)
+			optionIter := sp.client.Single().Query(ctx, optionStmt)
 			for {
 				optionRow, err := optionIter.Next()
 				if errors.Is(err, iterator.Done) {
@@ -189,7 +189,7 @@ GROUP BY c.TABLE_CATALOG, c.TABLE_SCHEMA, c.TABLE_NAME, c.INDEX_NAME, c.INDEX_TY
 `,
 			Params: map[string]interface{}{"tableName": tableName},
 		}
-		indexIter := sp.client.Single().Query(sp.ctx, indexStmt)
+		indexIter := sp.client.Single().Query(ctx, indexStmt)
 		indexes := []*schema.Index{}
 		constraints := []*schema.Constraint{}
 
@@ -294,7 +294,7 @@ WHERE
 GROUP BY kcu.TABLE_NAME, rc.CONSTRAINT_NAME, ccu.TABLE_NAME, rc.DELETE_RULE;
 `,
 	}
-	fkIter := sp.client.Single().Query(sp.ctx, fkStmt)
+	fkIter := sp.client.Single().Query(ctx, fkStmt)
 	defer fkIter.Stop()
 
 	relations := []*schema.Relation{}

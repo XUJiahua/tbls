@@ -1,10 +1,12 @@
 package mariadb
 
 import (
+	"context"
 	"database/sql"
 
 	"github.com/k1LoW/tbls/drivers"
 	"github.com/k1LoW/tbls/drivers/mysql"
+	"github.com/k1LoW/tbls/schema"
 )
 
 type Mariadb struct {
@@ -19,4 +21,9 @@ func New(db *sql.DB, opts ...drivers.Option) (*Mariadb, error) {
 	}
 	m.EnableMariaMode()
 	return &Mariadb{*m}, nil
+}
+
+// Analyze MariaDB database schema.
+func (m *Mariadb) Analyze(ctx context.Context, s *schema.Schema) error {
+	return m.Mysql.Analyze(ctx, s)
 }

@@ -1,12 +1,14 @@
 package drivers
 
 import (
+	"context"
+
 	"github.com/k1LoW/tbls/schema"
 )
 
 // Driver is the common interface for database drivers.
 type Driver interface {
-	Analyze(*schema.Schema) error
+	Analyze(ctx context.Context, s *schema.Schema) error
 	Info() (*schema.Driver, error)
 }
 
@@ -55,6 +57,9 @@ type StatsConfig struct {
 	// Date column configuration for partition filtering
 	DateColumn string
 	Tables     map[string]TableStatsConfig
+
+	// Context for cancellation support
+	Ctx context.Context
 }
 
 // TableStatsConfig holds per-table stats configuration

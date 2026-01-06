@@ -43,30 +43,41 @@ type TopValue struct {
 	Count int64  `json:"count"`
 }
 
+// QueryRecord holds a SQL query and its execution metrics
+type QueryRecord struct {
+	SQL        string `json:"sql"`
+	DurationMs int64  `json:"duration_ms"`
+}
+
 // ColumnStats holds column-level statistics
 type ColumnStats struct {
-	RowCount      int64      `json:"row_count"`
-	NullCount     int64      `json:"null_count"`
-	NullPercent   float64    `json:"null_percent"`
-	DistinctCount int64      `json:"distinct_count"`
-	Min           *float64   `json:"min,omitempty"`
-	Max           *float64   `json:"max,omitempty"`
-	Avg           *float64   `json:"avg,omitempty"`
-	MinDate       *string    `json:"min_date,omitempty"`
-	MaxDate       *string    `json:"max_date,omitempty"`
-	MinLength     *int64     `json:"min_length,omitempty"`
-	MaxLength     *int64     `json:"max_length,omitempty"`
-	AvgLength     *float64   `json:"avg_length,omitempty"`
-	TopValues     []TopValue `json:"top_values,omitempty"`
-	Queries       []string   `json:"queries,omitempty"`
+	RowCount      int64         `json:"row_count"`
+	NullCount     int64         `json:"null_count"`
+	NullPercent   float64       `json:"null_percent"`
+	DistinctCount int64         `json:"distinct_count"`
+	Min           *float64      `json:"min,omitempty"`
+	Max           *float64      `json:"max,omitempty"`
+	Avg           *float64      `json:"avg,omitempty"`
+	MinDate       *string       `json:"min_date,omitempty"`
+	MaxDate       *string       `json:"max_date,omitempty"`
+	MinLength     *int64        `json:"min_length,omitempty"`
+	MaxLength     *int64        `json:"max_length,omitempty"`
+	AvgLength     *float64      `json:"avg_length,omitempty"`
+	TopValues     []TopValue    `json:"top_values,omitempty"`
+	Queries       []QueryRecord `json:"queries,omitempty"`
+	// Fallback indicates that type-specific stats collection failed and
+	// the collector fell back to basic stats (row_count, null_count, distinct_count).
+	// This typically happens when the column's metadata type doesn't match the actual data.
+	Fallback      bool   `json:"fallback,omitempty"`
+	FallbackError string `json:"fallback_error,omitempty"`
 }
 
 // TableStats holds table-level statistics
 type TableStats struct {
-	RowCount   int64    `json:"row_count"`
-	DataBytes  int64    `json:"data_bytes,omitempty"`
-	IndexBytes int64    `json:"index_bytes,omitempty"`
-	Queries    []string `json:"queries,omitempty"`
+	RowCount   int64         `json:"row_count"`
+	DataBytes  int64         `json:"data_bytes,omitempty"`
+	IndexBytes int64         `json:"index_bytes,omitempty"`
+	Queries    []QueryRecord `json:"queries,omitempty"`
 }
 
 // DistributionItem represents a value with its count and percentage

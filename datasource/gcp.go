@@ -36,7 +36,7 @@ func AnalyzeBigquery(urlstr string) (*schema.Schema, error) {
 	if err != nil {
 		return s, err
 	}
-	err = driver.Analyze(s)
+	err = driver.Analyze(ctx, s)
 	if err != nil {
 		return s, err
 	}
@@ -102,7 +102,7 @@ func AnalyzeSpanner(urlstr string) (*schema.Schema, error) {
 	if err != nil {
 		return s, err
 	}
-	err = driver.Analyze(s)
+	err = driver.Analyze(ctx, s)
 	if err != nil {
 		return s, err
 	}

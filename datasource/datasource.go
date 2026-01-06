@@ -2,6 +2,7 @@ package datasource
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -44,7 +45,12 @@ var supportDriversWithDburl = []string{
 }
 
 // Analyze database.
-func Analyze(dsn config.DSN) (_ *schema.Schema, err error) {
+func Analyze(dsn config.DSN) (*schema.Schema, error) {
+	return AnalyzeContext(context.Background(), dsn)
+}
+
+// AnalyzeContext analyzes database with context for cancellation support.
+func AnalyzeContext(ctx context.Context, dsn config.DSN) (_ *schema.Schema, err error) {
 	defer func() {
 		err = errors.WithStack(err)
 	}()
@@ -75,7 +81,7 @@ func Analyze(dsn config.DSN) (_ *schema.Schema, err error) {
 	}
 	// ClickHouse HTTP protocol support: clickhouse+http:// or clickhouse+https://
 	if strings.HasPrefix(urlstr, "clickhouse+http://") || strings.HasPrefix(urlstr, "clickhouse+https://") {
-		return AnalyzeClickHouseHTTP(urlstr)
+		return AnalyzeClickHouseHTTPContext(ctx, urlstr)
 	}
 	s := &schema.Schema{}
 	u, err := dburl.Parse(urlstr)
@@ -122,7 +128,7 @@ func Analyze(dsn config.DSN) (_ *schema.Schema, err error) {
 	defer func() {
 		_ = db.Close()
 	}()
-	if err := db.Ping(); err != nil {
+	if err := db.PingContext(ctx); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
@@ -161,7 +167,7 @@ func Analyze(dsn config.DSN) (_ *schema.Schema, err error) {
 	default:
 		return s, fmt.Errorf("unsupported driver '%s'", u.Driver)
 	}
-	err = driver.Analyze(s)
+	err = driver.Analyze(ctx, s)
 	if err != nil {
 		return nil, err
 	}
@@ -175,12 +181,17 @@ func AnalyzeWithStats(dsn config.DSN, cfg *config.Config) (*schema.Schema, error
 
 // AnalyzeWithStatsAndProgress analyzes database with optional progress reporting and checkpoint support
 func AnalyzeWithStatsAndProgress(dsn config.DSN, cfg *config.Config, reporter stats.ProgressReporter) (*schema.Schema, error) {
+	return AnalyzeWithStatsAndProgressContext(context.Background(), dsn, cfg, reporter)
+}
+
+// AnalyzeWithStatsAndProgressContext analyzes database with context for cancellation support
+func AnalyzeWithStatsAndProgressContext(ctx context.Context, dsn config.DSN, cfg *config.Config, reporter stats.ProgressReporter) (*schema.Schema, error) {
 	// Report analyzing stage
 	if reporter != nil {
 		reporter.Report(stats.Progress{Stage: stats.StageAnalyzing})
 	}
 
-	s, err := Analyze(dsn)
+	s, err := AnalyzeContext(ctx, dsn)
 	if err != nil {
 		if reporter != nil {
 			reporter.Report(stats.Progress{Stage: stats.StageFailed})
@@ -195,7 +206,7 @@ func AnalyzeWithStatsAndProgress(dsn config.DSN, cfg *config.Config, reporter st
 			reporter.Report(stats.Progress{Stage: stats.StageCollectingStats})
 		}
 
-		if err := collectStatsWithProgress(s, dsn, cfg, reporter); err != nil {
+		if err := collectStatsWithProgress(ctx, s, dsn, cfg, reporter); err != nil {
 			if reporter != nil {
 				if err == clickhouse.ErrCancelled {
 					reporter.Report(stats.Progress{Stage: stats.StageCancelled})
@@ -238,7 +249,7 @@ func AnalyzeWithStatsAndProgress(dsn config.DSN, cfg *config.Config, reporter st
 	return s, nil
 }
 
-func collectStatsWithProgress(s *schema.Schema, dsn config.DSN, cfg *config.Config, reporter stats.ProgressReporter) error {
+func collectStatsWithProgress(ctx context.Context, s *schema.Schema, dsn config.DSN, cfg *config.Config, reporter stats.ProgressReporter) error {
 	urlstr := dsn.URL
 
 	// Setup checkpoint if enabled
@@ -309,6 +320,7 @@ func collectStatsWithProgress(s *schema.Schema, dsn config.DSN, cfg *config.Conf
 		Checkpoint:          checkpointAdapter,
 		DateColumn:          cfg.Stats.DateColumn,
 		Tables:              convertTableStatsConfig(cfg.Stats.Tables),
+		Ctx:                 ctx,
 	}
 
 	var collectErr error
@@ -359,7 +371,12 @@ func collectStatsWithProgress(s *schema.Schema, dsn config.DSN, cfg *config.Conf
 // AnalyzeClickHouseHTTP analyzes ClickHouse database using HTTP protocol
 // DSN format: clickhouse+http://user:password@host:port/database
 // or clickhouse+https://user:password@host:port/database
-func AnalyzeClickHouseHTTP(urlstr string) (_ *schema.Schema, err error) {
+func AnalyzeClickHouseHTTP(urlstr string) (*schema.Schema, error) {
+	return AnalyzeClickHouseHTTPContext(context.Background(), urlstr)
+}
+
+// AnalyzeClickHouseHTTPContext analyzes ClickHouse database using HTTP protocol with context support
+func AnalyzeClickHouseHTTPContext(ctx context.Context, urlstr string) (_ *schema.Schema, err error) {
 	defer func() {
 		err = errors.WithStack(err)
 	}()
@@ -394,12 +411,12 @@ func AnalyzeClickHouseHTTP(urlstr string) (_ *schema.Schema, err error) {
 	}
 	defer db.Close()
 
-	if err := db.Ping(); err != nil {
+	if err := db.PingContext(ctx); err != nil {
 		return nil, fmt.Errorf("failed to connect to ClickHouse via HTTP: %w", err)
 	}
 
 	driver := clickhouse.New(db)
-	if err := driver.Analyze(s); err != nil {
+	if err := driver.Analyze(ctx, s); err != nil {
 		return nil, err
 	}
 

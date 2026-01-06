@@ -21,6 +21,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -88,6 +89,10 @@ var outCmd = &cobra.Command{
 			c.Stats.Checkpoint.Enabled = false
 		}
 
+		// Create cancellable context for graceful shutdown
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		// Create progress reporter for CLI (write to stderr to avoid mixing with output)
 		var reporter stats.ProgressReporter
 		if c.Stats.Enabled {
@@ -99,12 +104,13 @@ var outCmd = &cobra.Command{
 			signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 			go func() {
 				<-sigCh
+				cancel() // Cancel context to interrupt database queries
 				cliReporter.Cancel()
 			}()
 			defer signal.Stop(sigCh)
 		}
 
-		s, err := datasource.AnalyzeWithStatsAndProgress(c.DSN, c, reporter)
+		s, err := datasource.AnalyzeWithStatsAndProgressContext(ctx, c.DSN, c, reporter)
 		if err != nil {
 			return err
 		}

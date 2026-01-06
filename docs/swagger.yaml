@@ -595,6 +595,14 @@ definitions:
         type: number
       distinct_count:
         type: integer
+      fallback:
+        description: |-
+          Fallback indicates that type-specific stats collection failed and
+          the collector fell back to basic stats (row_count, null_count, distinct_count).
+          This typically happens when the column's metadata type doesn't match the actual data.
+        type: boolean
+      fallback_error:
+        type: string
       max:
         type: number
       max_date:
@@ -613,7 +621,7 @@ definitions:
         type: number
       queries:
         items:
-          type: string
+          $ref: '#/definitions/schema.QueryRecord'
         type: array
       row_count:
         type: integer
@@ -729,6 +737,13 @@ definitions:
       virtual:
         type: boolean
     type: object
+  schema.QueryRecord:
+    properties:
+      duration_ms:
+        type: integer
+      sql:
+        type: string
+    type: object
   schema.Relation:
     properties:
       cardinality:
@@ -812,7 +827,7 @@ definitions:
         type: integer
       queries:
         items:
-          type: string
+          $ref: '#/definitions/schema.QueryRecord'
         type: array
       row_count:
         type: integer

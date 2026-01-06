@@ -1,9 +1,11 @@
 package clickhouse
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/k1LoW/tbls/drivers"
 	"github.com/k1LoW/tbls/schema"
@@ -29,6 +31,12 @@ var ErrCancelled = fmt.Errorf("operation cancelled")
 
 // CollectStats collects statistics for all tables in the schema
 func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) error {
+	// Get context or use background context for backward compatibility
+	ctx := cfg.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	log.WithFields(logrus.Fields{
 		"database": s.Name,
 		"include":  cfg.Include,
@@ -36,7 +44,7 @@ func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) er
 	}).Debug("starting stats collection")
 
 	// Get table stats from system.tables
-	tableStats, err := ch.getTableStats(s.Name)
+	tableStats, err := ch.getTableStats(ctx, s.Name)
 	if err != nil {
 		return err
 	}
@@ -125,7 +133,13 @@ func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) er
 
 		// Collect column stats
 		for colIdx, col := range table.Columns {
-			// Check for cancellation
+			// Check for cancellation - context first (faster response), then progress reporter
+			if ctx.Err() != nil {
+				if cfg.Checkpoint != nil {
+					_ = cfg.Checkpoint.Save()
+				}
+				return ErrCancelled
+			}
 			if cfg.Progress != nil && cfg.Progress.IsCancelled() {
 				if cfg.Checkpoint != nil {
 					_ = cfg.Checkpoint.Save()
@@ -151,7 +165,7 @@ func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) er
 				"progress": fmt.Sprintf("%d/%d (%.1f%%)", colIdx+1, len(table.Columns), float64(completedColumns)/float64(totalColumns)*100),
 			}).Debug("collecting column stats")
 
-			colStats, err := ch.getColumnStats(s.Name, table.Name, col.Name, col.Type, useDateFilter, dateCol, cfg)
+			colStats, err := ch.getColumnStats(ctx, s.Name, table.Name, col.Name, col.Type, useDateFilter, dateCol, cfg)
 			if err != nil {
 				// Save checkpoint and return error
 				if cfg.Checkpoint != nil {
@@ -215,7 +229,7 @@ func matchPattern(pattern, name string) bool {
 	return pattern == name
 }
 
-func (ch *ClickHouse) getTableStats(dbName string) (map[string]*schema.TableStats, error) {
+func (ch *ClickHouse) getTableStats(ctx context.Context, dbName string) (map[string]*schema.TableStats, error) {
 	result := make(map[string]*schema.TableStats)
 
 	query := `
@@ -228,7 +242,9 @@ func (ch *ClickHouse) getTableStats(dbName string) (map[string]*schema.TableStat
 		WHERE database = ?
 	`
 	log.WithField("query", strings.TrimSpace(query)).Debug("executing SQL")
-	rows, err := ch.db.Query(query, dbName)
+	startTime := time.Now()
+	rows, err := ch.db.QueryContext(ctx, query, dbName)
+	duration := time.Since(startTime).Milliseconds()
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +267,7 @@ func (ch *ClickHouse) getTableStats(dbName string) (map[string]*schema.TableStat
 			RowCount:   int64(rowCount),
 			DataBytes:  int64(dataBytes),
 			IndexBytes: int64(indexBytes),
-			Queries:    []string{formattedQuery},
+			Queries:    []schema.QueryRecord{{SQL: formattedQuery, DurationMs: duration}},
 		}
 	}
 
@@ -273,7 +289,7 @@ func extractDateColumn(partitionKey string) string {
 	return ""
 }
 
-func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string, useDateFilter bool, dateColumn string, cfg drivers.StatsConfig) (*schema.ColumnStats, error) {
+func (ch *ClickHouse) getColumnStats(ctx context.Context, dbName, tableName, colName, colType string, useDateFilter bool, dateColumn string, cfg drivers.StatsConfig) (*schema.ColumnStats, error) {
 	stats := &schema.ColumnStats{}
 	isNumeric := numericTypeRe.MatchString(colType)
 	isDate := dateTypeRe.MatchString(colType)
@@ -297,6 +313,35 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 	quotedDB := backquote(dbName)
 	quotedTable := backquote(tableName)
 
+	// Build the FROM clause:
+	// - If using date filter (recentDays), query all data within date range (no sampleSize limit)
+	// - Otherwise, apply sampleSize limit for sampling
+	var fromClause string
+	if useDateFilter {
+		// Date-filtered query - use all data within the date range
+		fromClause = fmt.Sprintf("FROM %s.%s %s", quotedDB, quotedTable, whereClause)
+	} else {
+		// No date filter - apply sampleSize for sampling
+		fromClause = fmt.Sprintf("FROM (SELECT %s FROM %s.%s LIMIT %d)", quotedCol, quotedDB, quotedTable, cfg.SampleSize)
+	}
+
+	// Build fallback query (basic stats only, no type-specific functions)
+	fallbackQuery := fmt.Sprintf(`
+		SELECT
+			count() as row_count,
+			countIf(%s IS NULL) as null_count,
+			countDistinct(%s) as distinct_count,
+			0 as min_val,
+			0 as max_val,
+			0 as avg_val,
+			'' as min_date,
+			'' as max_date,
+			0 as min_len,
+			0 as max_len,
+			0 as avg_len
+		%s
+	`, quotedCol, quotedCol, fromClause)
+
 	switch {
 	case isNumeric:
 		query = fmt.Sprintf(`
@@ -312,13 +357,8 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 				0 as min_len,
 				0 as max_len,
 				0 as avg_len
-			FROM (
-				SELECT %s
-				FROM %s.%s
-				%s
-				LIMIT %d
-			)
-		`, quotedCol, quotedCol, quotedCol, quotedCol, quotedCol, quotedCol, quotedDB, quotedTable, whereClause, cfg.SampleSize)
+			%s
+		`, quotedCol, quotedCol, quotedCol, quotedCol, quotedCol, fromClause)
 	case isDate:
 		query = fmt.Sprintf(`
 			SELECT
@@ -333,13 +373,8 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 				0 as min_len,
 				0 as max_len,
 				0 as avg_len
-			FROM (
-				SELECT %s
-				FROM %s.%s
-				%s
-				LIMIT %d
-			)
-		`, quotedCol, quotedCol, quotedCol, quotedCol, quotedCol, quotedDB, quotedTable, whereClause, cfg.SampleSize)
+			%s
+		`, quotedCol, quotedCol, quotedCol, quotedCol, fromClause)
 	case isString:
 		query = fmt.Sprintf(`
 			SELECT
@@ -354,38 +389,15 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 				min(length(%s)) as min_len,
 				max(length(%s)) as max_len,
 				avg(length(%s)) as avg_len
-			FROM (
-				SELECT %s
-				FROM %s.%s
-				%s
-				LIMIT %d
-			)
-		`, quotedCol, quotedCol, quotedCol, quotedCol, quotedCol, quotedCol, quotedDB, quotedTable, whereClause, cfg.SampleSize)
+			%s
+		`, quotedCol, quotedCol, quotedCol, quotedCol, quotedCol, fromClause)
 	default:
-		query = fmt.Sprintf(`
-			SELECT
-				count() as row_count,
-				countIf(%s IS NULL) as null_count,
-				countDistinct(%s) as distinct_count,
-				0 as min_val,
-				0 as max_val,
-				0 as avg_val,
-				'' as min_date,
-				'' as max_date,
-				0 as min_len,
-				0 as max_len,
-				0 as avg_len
-			FROM (
-				SELECT %s
-				FROM %s.%s
-				%s
-				LIMIT %d
-			)
-		`, quotedCol, quotedCol, quotedCol, quotedDB, quotedTable, whereClause, cfg.SampleSize)
+		query = fallbackQuery
 	}
 
 	log.WithField("query", strings.TrimSpace(query)).Debug("executing SQL")
-	row := ch.db.QueryRow(query)
+	startTime := time.Now()
+	row := ch.db.QueryRowContext(ctx, query)
 	var (
 		rowCount      int64
 		nullCount     int64
@@ -399,9 +411,60 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 		maxLen        int64
 		avgLen        float64
 	)
+
+	usedFallback := false
+	var fallbackError string
+
 	if err := row.Scan(&rowCount, &nullCount, &distinctCount, &minVal, &maxVal, &avgVal, &minDate, &maxDate, &minLen, &maxLen, &avgLen); err != nil {
-		return nil, err
+		// If the type-specific query failed, try the fallback query
+		if query != fallbackQuery {
+			log.WithFields(logrus.Fields{
+				"table":  tableName,
+				"column": colName,
+				"type":   colType,
+				"error":  err.Error(),
+			}).Warn("type-specific stats query failed, falling back to basic stats")
+
+			fallbackError = err.Error()
+			usedFallback = true
+
+			// Reset type flags since we're falling back
+			isNumeric = false
+			isDate = false
+			isString = false
+
+			log.WithField("query", strings.TrimSpace(fallbackQuery)).Debug("executing fallback SQL")
+			startTime = time.Now()
+			row = ch.db.QueryRowContext(ctx, fallbackQuery)
+			if err := row.Scan(&rowCount, &nullCount, &distinctCount, &minVal, &maxVal, &avgVal, &minDate, &maxDate, &minLen, &maxLen, &avgLen); err != nil {
+				// Even fallback failed (e.g., view with broken type casting)
+				// Return empty stats with error recorded instead of failing entirely
+				log.WithFields(logrus.Fields{
+					"table":  tableName,
+					"column": colName,
+					"error":  err.Error(),
+				}).Warn("fallback stats query also failed, returning empty stats")
+
+				stats.Fallback = true
+				stats.FallbackError = fmt.Sprintf("both type-specific and fallback queries failed: %s", err.Error())
+
+				// Still try to get top values - they might work
+				topValues, topValuesQueryRecord, topErr := ch.getTopValues(ctx, dbName, tableName, colName, whereClause, cfg.TopN, useDateFilter, cfg.SampleSize)
+				if topErr == nil {
+					stats.TopValues = topValues
+					if topValuesQueryRecord.SQL != "" {
+						stats.Queries = append(stats.Queries, topValuesQueryRecord)
+					}
+				}
+
+				return stats, nil
+			}
+			query = fallbackQuery
+		} else {
+			return nil, err
+		}
 	}
+	duration := time.Since(startTime).Milliseconds()
 
 	stats.RowCount = rowCount
 	stats.NullCount = nullCount
@@ -427,42 +490,71 @@ func (ch *ClickHouse) getColumnStats(dbName, tableName, colName, colType string,
 		stats.AvgLength = &avgLen
 	}
 
+	// Record fallback status
+	if usedFallback {
+		stats.Fallback = true
+		stats.FallbackError = fallbackError
+	}
+
 	// Record the stats query
-	stats.Queries = append(stats.Queries, strings.TrimSpace(query))
+	stats.Queries = append(stats.Queries, schema.QueryRecord{SQL: strings.TrimSpace(query), DurationMs: duration})
 
 	// Get top N values
-	topValues, topValuesQuery, err := ch.getTopValues(dbName, tableName, colName, whereClause, cfg.TopN)
+	topValues, topValuesQueryRecord, err := ch.getTopValues(ctx, dbName, tableName, colName, whereClause, cfg.TopN, useDateFilter, cfg.SampleSize)
 	if err == nil {
 		stats.TopValues = topValues
-		if topValuesQuery != "" {
-			stats.Queries = append(stats.Queries, topValuesQuery)
+		if topValuesQueryRecord.SQL != "" {
+			stats.Queries = append(stats.Queries, topValuesQueryRecord)
 		}
 	}
 
 	return stats, nil
 }
 
-func (ch *ClickHouse) getTopValues(dbName, tableName, colName, whereClause string, topN int) ([]schema.TopValue, string, error) {
+func (ch *ClickHouse) getTopValues(ctx context.Context, dbName, tableName, colName, whereClause string, topN int, useDateFilter bool, sampleSize int) ([]schema.TopValue, schema.QueryRecord, error) {
 	quotedCol := backquote(colName)
 	quotedDB := backquote(dbName)
 	quotedTable := backquote(tableName)
 
-	query := fmt.Sprintf(`
-		SELECT
-			toString(%s) as value,
-			count() as cnt
-		FROM %s.%s
-		%s
-		GROUP BY %s
-		ORDER BY cnt DESC
-		LIMIT %d
-	`, quotedCol, quotedDB, quotedTable, whereClause, quotedCol, topN)
+	// If using date filter (recentDays), query the filtered data directly without sampleSize limit.
+	// Otherwise, apply sampleSize to keep top_values consistent with other stats.
+	var query string
+	if useDateFilter {
+		// Date-filtered query - use all data within the date range
+		query = fmt.Sprintf(`
+			SELECT
+				toString(%s) as value,
+				count() as cnt
+			FROM %s.%s
+			%s
+			GROUP BY %s
+			ORDER BY cnt DESC
+			LIMIT %d
+		`, quotedCol, quotedDB, quotedTable, whereClause, quotedCol, topN)
+	} else {
+		// No date filter - apply sampleSize to be consistent with other stats
+		query = fmt.Sprintf(`
+			SELECT
+				toString(value) as value,
+				count() as cnt
+			FROM (
+				SELECT %s as value
+				FROM %s.%s
+				LIMIT %d
+			)
+			GROUP BY value
+			ORDER BY cnt DESC
+			LIMIT %d
+		`, quotedCol, quotedDB, quotedTable, sampleSize, topN)
+	}
 
 	formattedQuery := strings.TrimSpace(query)
 	log.WithField("query", formattedQuery).Debug("executing SQL")
-	rows, err := ch.db.Query(query)
+	startTime := time.Now()
+	rows, err := ch.db.QueryContext(ctx, query)
+	duration := time.Since(startTime).Milliseconds()
 	if err != nil {
-		return nil, "", err
+		return nil, schema.QueryRecord{}, err
 	}
 	defer rows.Close()
 
@@ -481,5 +573,5 @@ func (ch *ClickHouse) getTopValues(dbName, tableName, colName, whereClause strin
 		})
 	}
 
-	return result, formattedQuery, nil
+	return result, schema.QueryRecord{SQL: formattedQuery, DurationMs: duration}, nil
 }

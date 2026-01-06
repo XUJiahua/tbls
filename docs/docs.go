@@ -1043,6 +1043,13 @@ const docTemplate = `{
                 "distinct_count": {
                     "type": "integer"
                 },
+                "fallback": {
+                    "description": "Fallback indicates that type-specific stats collection failed and\nthe collector fell back to basic stats (row_count, null_count, distinct_count).\nThis typically happens when the column's metadata type doesn't match the actual data.",
+                    "type": "boolean"
+                },
+                "fallback_error": {
+                    "type": "string"
+                },
                 "max": {
                     "type": "number"
                 },
@@ -1070,7 +1077,7 @@ const docTemplate = `{
                 "queries": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/schema.QueryRecord"
                     }
                 },
                 "row_count": {
@@ -1249,6 +1256,17 @@ const docTemplate = `{
                 }
             }
         },
+        "schema.QueryRecord": {
+            "type": "object",
+            "properties": {
+                "duration_ms": {
+                    "type": "integer"
+                },
+                "sql": {
+                    "type": "string"
+                }
+            }
+        },
         "schema.Relation": {
             "type": "object",
             "properties": {
@@ -1375,7 +1393,7 @@ const docTemplate = `{
                 "queries": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/schema.QueryRecord"
                     }
                 },
                 "row_count": {

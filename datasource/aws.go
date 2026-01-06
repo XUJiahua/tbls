@@ -48,7 +48,7 @@ func AnalyzeDynamodb(urlstr string) (*schema.Schema, error) {
 	}
 
 	s.Name = fmt.Sprintf("Amazon DynamoDB (%s)", region)
-	err = driver.Analyze(s)
+	err = driver.Analyze(ctx, s)
 	if err != nil {
 		return s, err
 	}

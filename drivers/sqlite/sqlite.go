@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"sort"
@@ -42,7 +43,7 @@ type fk struct {
 }
 
 // Analyze SQLite database schema.
-func (l *Sqlite) Analyze(s *schema.Schema) (err error) {
+func (l *Sqlite) Analyze(ctx context.Context, s *schema.Schema) (err error) {
 	defer func() {
 		err = errors.WithStack(err)
 	}()
@@ -53,7 +54,7 @@ func (l *Sqlite) Analyze(s *schema.Schema) (err error) {
 	s.Driver = d
 
 	// tables
-	tableRows, err := l.db.Query(`
+	tableRows, err := l.db.QueryContext(ctx, `
 SELECT name, type, sql
 FROM sqlite_master
 WHERE name != 'sqlite_sequence' AND (type = 'table' OR type = 'view');`)
@@ -101,7 +102,7 @@ WHERE name != 'sqlite_sequence' AND (type = 'table' OR type = 'view');`)
 		constraints := []*schema.Constraint{}
 
 		// columns
-		columnRows, err := l.db.Query(fmt.Sprintf("PRAGMA table_info(`%s`)", tableName))
+		columnRows, err := l.db.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(`%s`)", tableName))
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -146,7 +147,7 @@ WHERE name != 'sqlite_sequence' AND (type = 'table' OR type = 'view');`)
 		fkMap := map[string]*fk{}
 		fkSlice := []*fk{}
 
-		foreignKeyRows, err := l.db.Query(fmt.Sprintf("PRAGMA foreign_key_list(`%s`)", tableName))
+		foreignKeyRows, err := l.db.QueryContext(ctx, fmt.Sprintf("PRAGMA foreign_key_list(`%s`)", tableName))
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -221,7 +222,7 @@ WHERE name != 'sqlite_sequence' AND (type = 'table' OR type = 'view');`)
 		}
 
 		// indexes and constraints(UNIQUE, PRIMARY KEY)
-		indexRows, err := l.db.Query(fmt.Sprintf("PRAGMA index_list(`%s`)", tableName))
+		indexRows, err := l.db.QueryContext(ctx, fmt.Sprintf("PRAGMA index_list(`%s`)", tableName))
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -254,7 +255,7 @@ WHERE name != 'sqlite_sequence' AND (type = 'table' OR type = 'view');`)
 				col                sql.NullString
 				cols               []string
 			)
-			row, err := l.db.Query(fmt.Sprintf("PRAGMA index_info(`%s`)", indexName))
+			row, err := l.db.QueryContext(ctx, fmt.Sprintf("PRAGMA index_info(`%s`)", indexName))
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -274,7 +275,7 @@ WHERE name != 'sqlite_sequence' AND (type = 'table' OR type = 'view');`)
 
 			switch indexCreatedBy {
 			case "c":
-				row, err := l.db.Query(`SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND name = ?;
+				row, err := l.db.QueryContext(ctx, `SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND name = ?;
 `, tableName, indexName)
 				if err != nil {
 					return errors.WithStack(err)
@@ -319,7 +320,7 @@ WHERE name != 'sqlite_sequence' AND (type = 'table' OR type = 'view');`)
 		}
 
 		// triggers
-		triggerRows, err := l.db.Query(`
+		triggerRows, err := l.db.QueryContext(ctx, `
 SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND tbl_name = ?;
 `, tableName)
 		if err != nil {

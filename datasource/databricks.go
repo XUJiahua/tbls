@@ -94,7 +94,8 @@ func AnalyzeDatabricks(urlstr string) (_ *schema.Schema, err error) {
 	explicitSchema := schemaName != ""
 	driver := driversDatabricks.New(db, apiClient, explicitSchema)
 
-	if err := driver.Analyze(s); err != nil {
+	ctx := context.Background()
+	if err := driver.Analyze(ctx, s); err != nil {
 		return nil, err
 	}
 

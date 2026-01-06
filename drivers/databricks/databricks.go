@@ -53,17 +53,17 @@ func New(db *sql.DB, apiClient TablesAPIClient, explicitSchema bool) *Databricks
 	}
 }
 
-func (dbx *Databricks) Analyze(s *schema.Schema) (err error) {
+func (dbx *Databricks) Analyze(ctx context.Context, s *schema.Schema) (err error) {
 	defer func() {
 		err = errors.WithStack(err)
 	}()
-	d, err := dbx.Info()
+	d, err := dbx.Info(ctx)
 	if err != nil {
 		return err
 	}
 	s.Driver = d
 
-	currentCatalog, currentSchema, err := dbx.getCurrentContext()
+	currentCatalog, currentSchema, err := dbx.getCurrentContext(ctx)
 	if err != nil {
 		return err
 	}
@@ -78,17 +78,17 @@ func (dbx *Databricks) Analyze(s *schema.Schema) (err error) {
 		s.Name = currentCatalog
 	}
 
-	tables, err := dbx.getTables(currentCatalog, targetSchema)
+	tables, err := dbx.getTables(ctx, currentCatalog, targetSchema)
 	if err != nil {
 		return err
 	}
 
-	columnsByTable, err := dbx.getAllColumns(currentCatalog, targetSchema)
+	columnsByTable, err := dbx.getAllColumns(ctx, currentCatalog, targetSchema)
 	if err != nil {
 		return err
 	}
 
-	constraintsByTable, err := dbx.getAllConstraints(currentCatalog, targetSchema)
+	constraintsByTable, err := dbx.getAllConstraints(ctx, currentCatalog, targetSchema)
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func (dbx *Databricks) Analyze(s *schema.Schema) (err error) {
 		}
 
 		if dbx.hasStructColumns(table.Columns) {
-			if err := dbx.enrichStructColumns(context.Background(), currentCatalog, currentSchema, table); err != nil {
+			if err := dbx.enrichStructColumns(ctx, currentCatalog, currentSchema, table); err != nil {
 				return err
 			}
 		}
@@ -111,7 +111,7 @@ func (dbx *Databricks) Analyze(s *schema.Schema) (err error) {
 
 	s.Tables = tables
 
-	relations, err := dbx.getRelations(currentCatalog, targetSchema, tables)
+	relations, err := dbx.getRelations(ctx, currentCatalog, targetSchema, tables)
 	if err != nil {
 		return err
 	}
@@ -120,15 +120,15 @@ func (dbx *Databricks) Analyze(s *schema.Schema) (err error) {
 	return nil
 }
 
-func (dbx *Databricks) getCurrentContext() (string, string, error) {
+func (dbx *Databricks) getCurrentContext(ctx context.Context) (string, string, error) {
 	var catalog, schema string
 
-	catRow := dbx.db.QueryRow(`SELECT current_catalog()`)
+	catRow := dbx.db.QueryRowContext(ctx, `SELECT current_catalog()`)
 	if err := catRow.Scan(&catalog); err != nil {
 		return "", "", err
 	}
 
-	schemaRow := dbx.db.QueryRow(`SELECT current_schema()`)
+	schemaRow := dbx.db.QueryRowContext(ctx, `SELECT current_schema()`)
 	if err := schemaRow.Scan(&schema); err != nil {
 		return "", "", err
 	}
@@ -136,33 +136,33 @@ func (dbx *Databricks) getCurrentContext() (string, string, error) {
 	return catalog, schema, nil
 }
 
-func (dbx *Databricks) getTables(catalog string, schemaName sql.NullString) ([]*schema.Table, error) {
+func (dbx *Databricks) getTables(ctx context.Context, catalog string, schemaName sql.NullString) ([]*schema.Table, error) {
 	var query string
 	var rows *sql.Rows
 	var err error
 
 	if schemaName.Valid {
 		query = `
-			SELECT 
+			SELECT
 				table_schema,
-				table_name, 
+				table_name,
 				table_type,
 				COALESCE(comment, '') as table_comment
-			FROM system.information_schema.tables 
+			FROM system.information_schema.tables
 			WHERE table_catalog = ? AND table_schema = ?
 			ORDER BY table_name`
-		rows, err = dbx.db.Query(query, catalog, schemaName.String)
+		rows, err = dbx.db.QueryContext(ctx, query, catalog, schemaName.String)
 	} else {
 		query = `
-			SELECT 
+			SELECT
 				table_schema,
-				table_name, 
+				table_name,
 				table_type,
 				COALESCE(comment, '') as table_comment
-			FROM system.information_schema.tables 
+			FROM system.information_schema.tables
 			WHERE table_catalog = ?
 			ORDER BY table_schema, table_name`
-		rows, err = dbx.db.Query(query, catalog)
+		rows, err = dbx.db.QueryContext(ctx, query, catalog)
 	}
 
 	if err != nil {
@@ -189,7 +189,7 @@ func (dbx *Databricks) getTables(catalog string, schemaName sql.NullString) ([]*
 		}
 
 		if strings.ToUpper(tableType) == "VIEW" {
-			viewDef, err := dbx.getViewDefinition(catalog, tableSchema, tableName)
+			viewDef, err := dbx.getViewDefinition(ctx, catalog, tableSchema, tableName)
 			if err != nil {
 				return nil, err
 			}
@@ -202,14 +202,14 @@ func (dbx *Databricks) getTables(catalog string, schemaName sql.NullString) ([]*
 	return tables, nil
 }
 
-func (dbx *Databricks) getAllColumns(catalog string, schemaName sql.NullString) (map[string][]*schema.Column, error) {
+func (dbx *Databricks) getAllColumns(ctx context.Context, catalog string, schemaName sql.NullString) (map[string][]*schema.Column, error) {
 	var query string
 	var rows *sql.Rows
 	var err error
 
 	if schemaName.Valid {
 		query = `
-			SELECT 
+			SELECT
 				c.table_name,
 				c.column_name,
 				c.data_type,
@@ -223,10 +223,10 @@ func (dbx *Databricks) getAllColumns(catalog string, schemaName sql.NullString) 
 			    AND c.table_name = t.table_name
 			WHERE c.table_catalog = ? AND c.table_schema = ?
 			ORDER BY c.table_name, c.ordinal_position`
-		rows, err = dbx.db.Query(query, catalog, schemaName.String)
+		rows, err = dbx.db.QueryContext(ctx, query, catalog, schemaName.String)
 	} else {
 		query = `
-			SELECT 
+			SELECT
 				c.table_schema,
 				c.table_name,
 				c.column_name,
@@ -241,7 +241,7 @@ func (dbx *Databricks) getAllColumns(catalog string, schemaName sql.NullString) 
 			    AND c.table_name = t.table_name
 			WHERE c.table_catalog = ?
 			ORDER BY c.table_schema, c.table_name, c.ordinal_position`
-		rows, err = dbx.db.Query(query, catalog)
+		rows, err = dbx.db.QueryContext(ctx, query, catalog)
 	}
 
 	if err != nil {
@@ -280,14 +280,14 @@ func (dbx *Databricks) getAllColumns(catalog string, schemaName sql.NullString) 
 	return columnsByTable, nil
 }
 
-func (dbx *Databricks) getAllConstraints(catalog string, schemaName sql.NullString) (map[string][]*schema.Constraint, error) {
+func (dbx *Databricks) getAllConstraints(ctx context.Context, catalog string, schemaName sql.NullString) (map[string][]*schema.Constraint, error) {
 	var query string
 	var rows *sql.Rows
 	var err error
 
 	if schemaName.Valid {
 		query = `
-			SELECT 
+			SELECT
 				tc.table_name,
 				tc.constraint_name,
 				tc.constraint_type,
@@ -312,10 +312,10 @@ func (dbx *Databricks) getAllConstraints(catalog string, schemaName sql.NullStri
 			WHERE tc.table_catalog = ? AND tc.table_schema = ?
 			GROUP BY tc.table_name, tc.constraint_name, tc.constraint_type
 			ORDER BY tc.table_name, tc.constraint_name`
-		rows, err = dbx.db.Query(query, catalog, schemaName.String)
+		rows, err = dbx.db.QueryContext(ctx, query, catalog, schemaName.String)
 	} else {
 		query = `
-			SELECT 
+			SELECT
 				tc.table_schema,
 				tc.table_name,
 				tc.constraint_name,
@@ -342,7 +342,7 @@ func (dbx *Databricks) getAllConstraints(catalog string, schemaName sql.NullStri
 			WHERE tc.table_catalog = ?
 			GROUP BY tc.table_schema, tc.table_name, tc.constraint_name, tc.constraint_type
 			ORDER BY tc.table_schema, tc.table_name, tc.constraint_name`
-		rows, err = dbx.db.Query(query, catalog)
+		rows, err = dbx.db.QueryContext(ctx, query, catalog)
 	}
 
 	if err != nil {
@@ -441,14 +441,14 @@ func (dbx *Databricks) buildConstraintDefinition(constraintType string, columns 
 	return fmt.Sprintf("%s (%s)", strings.ToUpper(constraintType), columnsStr)
 }
 
-func (dbx *Databricks) getRelations(catalog string, schemaName sql.NullString, tables []*schema.Table) ([]*schema.Relation, error) {
+func (dbx *Databricks) getRelations(ctx context.Context, catalog string, schemaName sql.NullString, tables []*schema.Table) ([]*schema.Relation, error) {
 	var query string
 	var rows *sql.Rows
 	var err error
 
 	if schemaName.Valid {
 		query = `
-			SELECT 
+			SELECT
 				rc.constraint_name,
 				kcu1.table_name as table_name,
 				kcu1.column_name as column_name,
@@ -459,7 +459,7 @@ func (dbx *Databricks) getRelations(catalog string, schemaName sql.NullString, t
 				kcu2.column_name as referenced_column_name,
 				kcu1.ordinal_position
 			FROM system.information_schema.referential_constraints rc
-			INNER JOIN system.information_schema.key_column_usage kcu1 
+			INNER JOIN system.information_schema.key_column_usage kcu1
 				ON rc.constraint_catalog = kcu1.constraint_catalog
 				AND rc.constraint_schema = kcu1.constraint_schema
 				AND rc.constraint_name = kcu1.constraint_name
@@ -471,10 +471,10 @@ func (dbx *Databricks) getRelations(catalog string, schemaName sql.NullString, t
 			WHERE rc.constraint_catalog = ?
 				AND rc.constraint_schema = ?
 			ORDER BY rc.constraint_name, kcu1.ordinal_position`
-		rows, err = dbx.db.Query(query, catalog, schemaName.String)
+		rows, err = dbx.db.QueryContext(ctx, query, catalog, schemaName.String)
 	} else {
 		query = `
-			SELECT 
+			SELECT
 				rc.constraint_name,
 				kcu1.table_schema as table_schema,
 				kcu1.table_name as table_name,
@@ -487,7 +487,7 @@ func (dbx *Databricks) getRelations(catalog string, schemaName sql.NullString, t
 				kcu2.column_name as referenced_column_name,
 				kcu1.ordinal_position
 			FROM system.information_schema.referential_constraints rc
-			INNER JOIN system.information_schema.key_column_usage kcu1 
+			INNER JOIN system.information_schema.key_column_usage kcu1
 				ON rc.constraint_catalog = kcu1.constraint_catalog
 				AND rc.constraint_schema = kcu1.constraint_schema
 				AND rc.constraint_name = kcu1.constraint_name
@@ -498,7 +498,7 @@ func (dbx *Databricks) getRelations(catalog string, schemaName sql.NullString, t
 				AND kcu1.position_in_unique_constraint = kcu2.ordinal_position
 			WHERE rc.constraint_catalog = ?
 			ORDER BY rc.constraint_name, kcu1.ordinal_position`
-		rows, err = dbx.db.Query(query, catalog)
+		rows, err = dbx.db.QueryContext(ctx, query, catalog)
 	}
 
 	if err != nil {
@@ -572,9 +572,9 @@ func (dbx *Databricks) getRelations(catalog string, schemaName sql.NullString, t
 	return relations, nil
 }
 
-func (dbx *Databricks) getViewDefinition(catalog, schemaName, viewName string) (string, error) {
+func (dbx *Databricks) getViewDefinition(ctx context.Context, catalog, schemaName, viewName string) (string, error) {
 	query := fmt.Sprintf("SHOW CREATE TABLE `%s`.`%s`.`%s`", catalog, schemaName, viewName)
-	row := dbx.db.QueryRow(query)
+	row := dbx.db.QueryRowContext(ctx, query)
 
 	var createStatement string
 	if err := row.Scan(&createStatement); err != nil {
@@ -797,9 +797,9 @@ func (dbx *Databricks) formatType(typeData map[string]any) string {
 	}
 }
 
-func (dbx *Databricks) Info() (*schema.Driver, error) {
+func (dbx *Databricks) Info(ctx context.Context) (*schema.Driver, error) {
 	var v string
-	row := dbx.db.QueryRow(`SELECT VERSION()`)
+	row := dbx.db.QueryRowContext(ctx, `SELECT VERSION()`)
 	if err := row.Scan(&v); err != nil {
 		return nil, err
 	}
