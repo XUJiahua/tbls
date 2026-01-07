@@ -1,9 +1,5 @@
 name: ""
 dsn: ""
-docPath: dbdoc
-er:
-  format: svg
-  distance: 1
 stats:
   enabled: false
   topN: 10

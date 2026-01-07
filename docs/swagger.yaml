@@ -14,24 +14,16 @@ definitions:
   cmd.APIScaffoldConfig:
     description: Complete configuration with all parameters and defaults
     properties:
-      baseUrl:
-        type: string
       desc:
         type: string
       detectVirtualRelations:
         $ref: '#/definitions/cmd.APIScaffoldDetectVirtualRelConfig'
-      docPath:
-        type: string
       dsn:
         $ref: '#/definitions/config.DSN'
-      er:
-        $ref: '#/definitions/cmd.APIScaffoldERConfig'
       exclude:
         items:
           type: string
         type: array
-      format:
-        $ref: '#/definitions/cmd.APIScaffoldFormatConfig'
       include:
         items:
           type: string
@@ -44,6 +36,8 @@ definitions:
         type: string
       requiredVersion:
         type: string
+      sort:
+        type: boolean
       stats:
         $ref: '#/definitions/cmd.APIScaffoldStatsConfig'
     type: object
@@ -54,42 +48,6 @@ definitions:
         type: boolean
       strategy:
         type: string
-    type: object
-  cmd.APIScaffoldERConfig:
-    description: ER diagram generation settings
-    properties:
-      comment:
-        type: boolean
-      distance:
-        example: 1
-        type: integer
-      font:
-        type: string
-      format:
-        example: svg
-        type: string
-      hideDef:
-        type: boolean
-      showColumnTypes:
-        $ref: '#/definitions/config.ShowColumnTypes'
-      skip:
-        type: boolean
-    type: object
-  cmd.APIScaffoldFormatConfig:
-    description: Document format settings
-    properties:
-      adjust:
-        type: boolean
-      hideColumnsWithoutValues:
-        items:
-          type: string
-        type: array
-      number:
-        type: boolean
-      showOnlyFirstParagraph:
-        type: boolean
-      sort:
-        type: boolean
     type: object
   cmd.APIScaffoldInferenceConfig:
     description: Stats-based inference configuration
@@ -207,16 +165,6 @@ definitions:
         example: dsn.url is required
         type: string
     type: object
-  cmd.FormatConfig:
-    description: Output format settings
-    properties:
-      adjust:
-        description: Adjust column widths
-        type: boolean
-      sort:
-        description: Sort tables and columns alphabetically
-        type: boolean
-    type: object
   cmd.ProgressInfo:
     description: Detailed progress information during stats collection
     properties:
@@ -285,10 +233,6 @@ definitions:
       force:
         description: Force ignores checkpoint and forces stats collection
         type: boolean
-      format:
-        allOf:
-        - $ref: '#/definitions/cmd.FormatConfig'
-        description: Format contains output format settings
       include:
         description: Include specifies tables to include (supports wildcards)
         example:
@@ -301,6 +245,9 @@ definitions:
       name:
         description: Name overrides the database name
         type: string
+      sort:
+        description: Sort tables and columns alphabetically
+        type: boolean
       stats:
         allOf:
         - $ref: '#/definitions/cmd.StatsConfig'
@@ -468,13 +415,6 @@ definitions:
         type: object
       url:
         type: string
-    type: object
-  config.ShowColumnTypes:
-    properties:
-      primary:
-        type: boolean
-      related:
-        type: boolean
     type: object
   dict.Dict:
     type: object

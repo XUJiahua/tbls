@@ -12,46 +12,26 @@ import (
 	"github.com/goccy/go-yaml"
 	"github.com/k1LoW/errors"
 	"github.com/k1LoW/expand"
-	"github.com/k1LoW/tbls/dict"
 	"github.com/k1LoW/tbls/schema"
 	ver "github.com/k1LoW/tbls/version"
 	"github.com/samber/lo"
 )
 
-const DefaultDocPath = "dbdoc"
-
 var DefaultConfigFilePaths = []string{".tbls.yml", "tbls.yml", ".tbls.yaml", "tbls.yaml"}
-
-// DefaultERFormat is the default ER diagram format.
-const DefaultERFormat = "svg"
-
-var SupportERFormat = []string{"png", "jpg", "svg", "mermaid"}
-
-const SchemaFileName = "schema.json"
-
-// DefaultERDistance is the default distance between tables that display relations in the ER.
-var DefaultERDistance = 1
 
 // Config is tbls config.
 type Config struct {
-	Name   string   `yaml:"name" json:"name"`
-	Desc   string   `yaml:"desc,omitempty" json:"desc,omitempty"`
-	Labels []string `yaml:"labels,omitempty" json:"labels,omitempty"`
-	DSN    DSN      `yaml:"dsn" json:"dsn"`
-	// Directory of schema document
-	DocPath                string                 `yaml:"docPath" json:"docPath,omitempty"`
-	Format                 Format                 `yaml:"format,omitempty" json:"format,omitempty"`
-	ER                     ER                     `yaml:"er,omitempty" json:"er,omitempty"`
+	Name                   string                 `yaml:"name" json:"name"`
+	Desc                   string                 `yaml:"desc,omitempty" json:"desc,omitempty"`
+	Labels                 []string               `yaml:"labels,omitempty" json:"labels,omitempty"`
+	DSN                    DSN                    `yaml:"dsn" json:"dsn"`
 	Include                []string               `yaml:"include,omitempty" json:"include,omitempty"`
 	Exclude                []string               `yaml:"exclude,omitempty" json:"exclude,omitempty"`
 	Distance               int                    `yaml:"distance,omitempty" json:"distance,omitempty"`
-	Dict                   dict.Dict              `yaml:"dict,omitempty" json:"dict,omitempty"`
-	Templates              Templates              `yaml:"templates,omitempty" json:"templates,omitempty"`
+	Sort                   bool                   `yaml:"sort,omitempty" json:"sort,omitempty"`
 	DetectVirtualRelations DetectVirtualRelations `yaml:"detectVirtualRelations,omitempty" json:"detectVirtualRelations,omitempty"`
-	BaseURL                string                 `yaml:"baseUrl,omitempty" json:"baseUrl,omitempty"`
 	RequiredVersion        string                 `yaml:"requiredVersion,omitempty" json:"requiredVersion,omitempty"`
 	Stats                  StatsConfig            `yaml:"stats,omitempty" json:"stats,omitempty"`
-	MergedDict             dict.Dict              `yaml:"-" json:"-"`
 
 	// Table labels to be included
 	includeLabels []string
@@ -64,32 +44,6 @@ type Config struct {
 type DSN struct {
 	URL     string            `yaml:"url" json:"url"`
 	Headers map[string]string `yaml:"headers,omitempty" json:"headers,omitempty"`
-}
-
-// Format is document format setting.
-type Format struct {
-	Adjust                   bool     `yaml:"adjust,omitempty" json:"adjust,omitempty"`
-	Sort                     bool     `yaml:"sort,omitempty" json:"sort,omitempty"`
-	Number                   bool     `yaml:"number,omitempty" json:"number,omitempty"`
-	ShowOnlyFirstParagraph   bool     `yaml:"showOnlyFirstParagraph,omitempty" json:"showOnlyFirstParagraph,omitempty"`
-	HideColumnsWithoutValues []string `yaml:"hideColumnsWithoutValues,omitempty" json:"hideColumnsWithoutValues,omitempty"`
-}
-
-// ER is er setting.
-type ER struct {
-	Skip            bool             `yaml:"skip,omitempty" json:"skip,omitempty"`
-	Format          string           `yaml:"format,omitempty" json:"format,omitempty"`
-	Comment         bool             `yaml:"comment,omitempty" json:"comment,omitempty"`
-	HideDef         bool             `yaml:"hideDef,omitempty" json:"hideDef,omitempty"`
-	ShowColumnTypes *ShowColumnTypes `yaml:"showColumnTypes,omitempty" json:"showColumnTypes,omitempty"`
-	Distance        *int             `yaml:"distance,omitempty" json:"distance,omitempty"`
-	Font            string           `yaml:"font,omitempty" json:"font,omitempty"`
-}
-
-// ShowColumnTypes is show column setting for ER diagram.
-type ShowColumnTypes struct {
-	Related bool `yaml:"related,omitempty" json:"related,omitempty"`
-	Primary bool `yaml:"primary,omitempty" json:"primary,omitempty"`
 }
 
 type DetectVirtualRelations struct {
@@ -195,47 +149,11 @@ func DSNURL(dsn string) Option {
 	}
 }
 
-// DocPath return Option set Config.DocPath.
-func DocPath(docPath string) Option {
-	return func(c *Config) error {
-		c.DocPath = docPath
-		return nil
-	}
-}
-
-// Adjust return Option set Config.Format.Adjust.
-func Adjust(adjust bool) Option {
-	return func(c *Config) error {
-		if adjust {
-			c.Format.Adjust = adjust
-		}
-		return nil
-	}
-}
-
-// Sort return Option set Config.Format.Sort.
+// Sort return Option set Config.Sort.
 func Sort(sort bool) Option {
 	return func(c *Config) error {
 		if sort {
-			c.Format.Sort = sort
-		}
-		return nil
-	}
-}
-
-// ERSkip return Option set Config.ER.Skip.
-func ERSkip(skip bool) Option {
-	return func(c *Config) error {
-		c.ER.Skip = skip
-		return nil
-	}
-}
-
-// ERFormat return Option set Config.ER.Format.
-func ERFormat(erFormat string) Option {
-	return func(c *Config) error {
-		if erFormat != "" {
-			c.ER.Format = erFormat
+			c.Sort = sort
 		}
 		return nil
 	}
@@ -245,16 +163,6 @@ func ERFormat(erFormat string) Option {
 func Distance(distance int) Option {
 	return func(c *Config) error {
 		c.Distance = distance
-		return nil
-	}
-}
-
-// BaseURL return Option set Config.BaseURL.
-func BaseURL(baseURL string) Option {
-	return func(c *Config) error {
-		if baseURL != "" {
-			c.BaseURL = baseURL
-		}
 		return nil
 	}
 }
@@ -336,18 +244,6 @@ func (c *Config) LoadOption(options ...Option) error {
 
 // set default setting.
 func (c *Config) setDefault() error {
-	if c.DocPath == "" {
-		c.DocPath = DefaultDocPath
-	}
-
-	if c.ER.Format == "" {
-		c.ER.Format = DefaultERFormat
-	}
-
-	if c.ER.Distance == nil {
-		c.ER.Distance = &DefaultERDistance
-	}
-
 	// Stats defaults
 	if c.Stats.TopN == 0 {
 		c.Stats.TopN = 10
@@ -426,10 +322,6 @@ func (c *Config) validate() error {
 	if err := c.checkVersion(ver.Version); err != nil {
 		return err
 	}
-	if !lo.Contains(SupportERFormat, c.ER.Format) {
-		return fmt.Errorf("unsupported ER format: %s", c.ER.Format)
-	}
-
 	return nil
 }
 
@@ -438,10 +330,6 @@ func (c *Config) LoadEnviron() error {
 	dsn := os.Getenv("TBLS_DSN")
 	if dsn != "" {
 		c.DSN.URL = dsn
-	}
-	docPath := os.Getenv("TBLS_DOC_PATH")
-	if docPath != "" {
-		c.DocPath = docPath
 	}
 	return nil
 }
@@ -493,7 +381,6 @@ func (c *Config) LoadConfig(in []byte) (err error) {
 	if err := yaml.Unmarshal(expand.ExpandenvYAMLBytes(in), c); err != nil {
 		return fmt.Errorf("failed to load config file: %w", err)
 	}
-	c.MergedDict.Merge(c.Dict.Dump())
 	return nil
 }
 
@@ -515,7 +402,7 @@ func (c *Config) ModifySchema(s *schema.Schema) error {
 	if err := c.FilterTables(s); err != nil {
 		return err
 	}
-	if c.Format.Sort {
+	if c.Sort {
 		if err := s.Sort(); err != nil {
 			return err
 		}
@@ -527,11 +414,7 @@ func (c *Config) ModifySchema(s *schema.Schema) error {
 		}
 		MergeDetectedRelations(s, strategy)
 	}
-	c.mergeDictFromSchema(s)
 	if err := detectCardinality(s); err != nil {
-		return err
-	}
-	if err := c.detectShowColumnsForER(s); err != nil {
 		return err
 	}
 
@@ -565,12 +448,6 @@ func (c *Config) ShouldCollectStats(tableName string) bool {
 	return true
 }
 
-func (c *Config) mergeDictFromSchema(s *schema.Schema) {
-	if s.Driver != nil && s.Driver.Meta != nil && s.Driver.Meta.Dict != nil {
-		c.MergedDict.Merge(s.Driver.Meta.Dict.Dump())
-	}
-}
-
 // MaskedDSN return DSN mask password.
 func (c *Config) MaskedDSN() (string, error) {
 	u, err := url.Parse(c.DSN.URL)
@@ -584,52 +461,6 @@ func (c *Config) MaskedDSN() (string, error) {
 	tmp := "-----tbls-----"
 	u.User = url.UserPassword(u.User.Username(), tmp)
 	return strings.Replace(u.String(), tmp, "*****", 1), nil
-}
-
-func (c *Config) SchemaFilePath() string {
-	return filepath.Join(c.DocPath, SchemaFileName)
-}
-
-func (c *Config) NeedToGenerateERImages() bool {
-	if c.ER.Skip {
-		return false
-	}
-	if c.ER.Format == "mermaid" {
-		return false
-	}
-	return true
-}
-
-func (c *Config) detectShowColumnsForER(s *schema.Schema) error {
-	if c.ER.ShowColumnTypes == nil {
-		return nil
-	}
-
-	if !c.ER.ShowColumnTypes.Related && !c.ER.ShowColumnTypes.Primary {
-		return errors.New("er.showColumnTypes: must be true at least one")
-	}
-
-	for _, t := range s.Tables {
-		for _, cc := range t.Columns {
-			if c.ER.ShowColumnTypes.Related && (len(cc.ChildRelations) > 0 || len(cc.ParentRelations) > 0) {
-				// related
-				cc.HideForER = false
-			} else if c.ER.ShowColumnTypes.Primary && cc.PK {
-				// primary
-				cc.HideForER = false
-			} else {
-				cc.HideForER = true
-				for _, r := range cc.ChildRelations {
-					r.HideForER = true
-				}
-				for _, r := range cc.ParentRelations {
-					r.HideForER = true
-				}
-			}
-		}
-	}
-
-	return nil
 }
 
 // MergeDetectedRelations detects and merges virtual relations based on naming conventions

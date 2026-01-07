@@ -16,7 +16,8 @@ import (
 )
 
 var (
-	scaffoldOut string
+	scaffoldOut   string
+	scaffoldForce bool
 )
 
 // scaffoldCmd represents the scaffold command.
@@ -92,7 +93,7 @@ Examples:
 		}
 
 		// Handle file output
-		if err := writeScaffoldOutput(outPath, scaffolded, force); err != nil {
+		if err := writeScaffoldOutput(outPath, scaffolded, scaffoldForce); err != nil {
 			return err
 		}
 
@@ -107,35 +108,12 @@ type ScaffoldConfig struct {
 	Desc                   string                         `yaml:"desc,omitempty"`
 	Labels                 []string                       `yaml:"labels,omitempty"`
 	DSN                    config.DSN                     `yaml:"dsn"`
-	DocPath                string                         `yaml:"docPath"`
-	Format                 ScaffoldFormat                 `yaml:"format"`
-	ER                     ScaffoldER                     `yaml:"er"`
 	Include                []string                       `yaml:"include,omitempty"`
 	Exclude                []string                       `yaml:"exclude,omitempty"`
+	Sort                   bool                           `yaml:"sort"`
 	DetectVirtualRelations ScaffoldDetectVirtualRelations `yaml:"detectVirtualRelations"`
 	Stats                  ScaffoldStats                  `yaml:"stats"`
-	BaseURL                string                         `yaml:"baseUrl,omitempty"`
 	RequiredVersion        string                         `yaml:"requiredVersion,omitempty"`
-}
-
-// ScaffoldFormat represents format settings with explicit defaults.
-type ScaffoldFormat struct {
-	Adjust                   bool     `yaml:"adjust"`
-	Sort                     bool     `yaml:"sort"`
-	Number                   bool     `yaml:"number"`
-	ShowOnlyFirstParagraph   bool     `yaml:"showOnlyFirstParagraph"`
-	HideColumnsWithoutValues []string `yaml:"hideColumnsWithoutValues,omitempty"`
-}
-
-// ScaffoldER represents ER settings with explicit defaults.
-type ScaffoldER struct {
-	Skip            bool                    `yaml:"skip"`
-	Format          string                  `yaml:"format"`
-	Comment         bool                    `yaml:"comment"`
-	HideDef         bool                    `yaml:"hideDef"`
-	ShowColumnTypes *config.ShowColumnTypes `yaml:"showColumnTypes,omitempty"`
-	Distance        int                     `yaml:"distance"`
-	Font            string                  `yaml:"font,omitempty"`
 }
 
 // ScaffoldDetectVirtualRelations represents detectVirtualRelations settings.
@@ -185,42 +163,19 @@ type ScaffoldTableStatsConfig struct {
 // GenerateScaffoldConfig generates a complete scaffolded config from config and schema.
 // This function is exported for use by the serve API.
 func GenerateScaffoldConfig(c *config.Config, s *schema.Schema) (*ScaffoldConfig, error) {
-	// Get ER distance (default is 1)
-	erDistance := config.DefaultERDistance
-	if c.ER.Distance != nil {
-		erDistance = *c.ER.Distance
-	}
-
 	scaffolded := &ScaffoldConfig{
 		Name:    c.Name,
 		Desc:    c.Desc,
 		Labels:  c.Labels,
 		DSN:     c.DSN,
-		DocPath: c.DocPath,
-		Format: ScaffoldFormat{
-			Adjust:                   c.Format.Adjust,
-			Sort:                     c.Format.Sort,
-			Number:                   c.Format.Number,
-			ShowOnlyFirstParagraph:   c.Format.ShowOnlyFirstParagraph,
-			HideColumnsWithoutValues: c.Format.HideColumnsWithoutValues,
-		},
-		ER: ScaffoldER{
-			Skip:            c.ER.Skip,
-			Format:          c.ER.Format,
-			Comment:         c.ER.Comment,
-			HideDef:         c.ER.HideDef,
-			ShowColumnTypes: c.ER.ShowColumnTypes,
-			Distance:        erDistance,
-			Font:            c.ER.Font,
-		},
 		Include: c.Include,
 		Exclude: c.Exclude,
+		Sort:    c.Sort,
 		DetectVirtualRelations: ScaffoldDetectVirtualRelations{
 			Enabled:  c.DetectVirtualRelations.Enabled,
 			Strategy: c.DetectVirtualRelations.Strategy,
 		},
 		Stats:           buildStatsConfig(c, s),
-		BaseURL:         c.BaseURL,
 		RequiredVersion: c.RequiredVersion,
 	}
 
@@ -384,5 +339,5 @@ func init() {
 	scaffoldCmd.Flags().StringVarP(&configPath, "config", "c", "", "config file path")
 	scaffoldCmd.Flags().StringVarP(&dsn, "dsn", "", "", "data source name (required if --config is not specified)")
 	scaffoldCmd.Flags().StringVarP(&scaffoldOut, "out", "o", "", "output file path (default: overwrite config file or .tbls.yml)")
-	scaffoldCmd.Flags().BoolVarP(&force, "force", "f", false, "force overwrite without prompt")
+	scaffoldCmd.Flags().BoolVarP(&scaffoldForce, "force", "f", false, "force overwrite without prompt")
 }

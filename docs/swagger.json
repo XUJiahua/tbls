@@ -205,32 +205,20 @@
             "description": "Complete configuration with all parameters and defaults",
             "type": "object",
             "properties": {
-                "baseUrl": {
-                    "type": "string"
-                },
                 "desc": {
                     "type": "string"
                 },
                 "detectVirtualRelations": {
                     "$ref": "#/definitions/cmd.APIScaffoldDetectVirtualRelConfig"
                 },
-                "docPath": {
-                    "type": "string"
-                },
                 "dsn": {
                     "$ref": "#/definitions/config.DSN"
-                },
-                "er": {
-                    "$ref": "#/definitions/cmd.APIScaffoldERConfig"
                 },
                 "exclude": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
-                },
-                "format": {
-                    "$ref": "#/definitions/cmd.APIScaffoldFormatConfig"
                 },
                 "include": {
                     "type": "array",
@@ -250,6 +238,9 @@
                 "requiredVersion": {
                     "type": "string"
                 },
+                "sort": {
+                    "type": "boolean"
+                },
                 "stats": {
                     "$ref": "#/definitions/cmd.APIScaffoldStatsConfig"
                 }
@@ -264,59 +255,6 @@
                 },
                 "strategy": {
                     "type": "string"
-                }
-            }
-        },
-        "cmd.APIScaffoldERConfig": {
-            "description": "ER diagram generation settings",
-            "type": "object",
-            "properties": {
-                "comment": {
-                    "type": "boolean"
-                },
-                "distance": {
-                    "type": "integer",
-                    "example": 1
-                },
-                "font": {
-                    "type": "string"
-                },
-                "format": {
-                    "type": "string",
-                    "example": "svg"
-                },
-                "hideDef": {
-                    "type": "boolean"
-                },
-                "showColumnTypes": {
-                    "$ref": "#/definitions/config.ShowColumnTypes"
-                },
-                "skip": {
-                    "type": "boolean"
-                }
-            }
-        },
-        "cmd.APIScaffoldFormatConfig": {
-            "description": "Document format settings",
-            "type": "object",
-            "properties": {
-                "adjust": {
-                    "type": "boolean"
-                },
-                "hideColumnsWithoutValues": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "number": {
-                    "type": "boolean"
-                },
-                "showOnlyFirstParagraph": {
-                    "type": "boolean"
-                },
-                "sort": {
-                    "type": "boolean"
                 }
             }
         },
@@ -483,20 +421,6 @@
                 }
             }
         },
-        "cmd.FormatConfig": {
-            "description": "Output format settings",
-            "type": "object",
-            "properties": {
-                "adjust": {
-                    "description": "Adjust column widths",
-                    "type": "boolean"
-                },
-                "sort": {
-                    "description": "Sort tables and columns alphabetically",
-                    "type": "boolean"
-                }
-            }
-        },
         "cmd.ProgressInfo": {
             "description": "Detailed progress information during stats collection",
             "type": "object",
@@ -601,14 +525,6 @@
                     "description": "Force ignores checkpoint and forces stats collection",
                     "type": "boolean"
                 },
-                "format": {
-                    "description": "Format contains output format settings",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/cmd.FormatConfig"
-                        }
-                    ]
-                },
                 "include": {
                     "description": "Include specifies tables to include (supports wildcards)",
                     "type": "array",
@@ -624,6 +540,10 @@
                 "name": {
                     "description": "Name overrides the database name",
                     "type": "string"
+                },
+                "sort": {
+                    "description": "Sort tables and columns alphabetically",
+                    "type": "boolean"
                 },
                 "stats": {
                     "description": "Stats configures statistics collection",
@@ -852,17 +772,6 @@
                 },
                 "url": {
                     "type": "string"
-                }
-            }
-        },
-        "config.ShowColumnTypes": {
-            "type": "object",
-            "properties": {
-                "primary": {
-                    "type": "boolean"
-                },
-                "related": {
-                    "type": "boolean"
                 }
             }
         },

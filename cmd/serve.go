@@ -125,12 +125,7 @@ func handleScaffold(c *gin.Context) {
 			URL:     req.DSN.URL,
 			Headers: req.DSN.Headers,
 		},
-		DocPath: config.DefaultDocPath,
-		ER: config.ER{
-			Format: config.DefaultERFormat,
-		},
 	}
-	cfg.ER.Distance = &config.DefaultERDistance
 
 	// Analyze database schema (without stats)
 	s, err := datasource.Analyze(cfg.DSN)
@@ -170,29 +165,13 @@ func convertToAPIScaffoldConfig(s *ScaffoldConfig) *APIScaffoldConfig {
 	}
 
 	return &APIScaffoldConfig{
-		Name:        s.Name,
-		Desc:        s.Desc,
-		Labels:      s.Labels,
-		DSN:         s.DSN,
-		DocPath:     s.DocPath,
-		Format: APIScaffoldFormatConfig{
-			Adjust:                   s.Format.Adjust,
-			Sort:                     s.Format.Sort,
-			Number:                   s.Format.Number,
-			ShowOnlyFirstParagraph:   s.Format.ShowOnlyFirstParagraph,
-			HideColumnsWithoutValues: s.Format.HideColumnsWithoutValues,
-		},
-		ER: APIScaffoldERConfig{
-			Skip:            s.ER.Skip,
-			Format:          s.ER.Format,
-			Comment:         s.ER.Comment,
-			HideDef:         s.ER.HideDef,
-			ShowColumnTypes: s.ER.ShowColumnTypes,
-			Distance:        s.ER.Distance,
-			Font:            s.ER.Font,
-		},
+		Name:    s.Name,
+		Desc:    s.Desc,
+		Labels:  s.Labels,
+		DSN:     s.DSN,
 		Include: s.Include,
 		Exclude: s.Exclude,
+		Sort:    s.Sort,
 		DetectVirtualRelations: APIScaffoldDetectVirtualRelConfig{
 			Enabled:  s.DetectVirtualRelations.Enabled,
 			Strategy: s.DetectVirtualRelations.Strategy,
@@ -221,7 +200,6 @@ func convertToAPIScaffoldConfig(s *ScaffoldConfig) *APIScaffoldConfig {
 			},
 			Tables: tables,
 		},
-		BaseURL:         s.BaseURL,
 		RequiredVersion: s.RequiredVersion,
 	}
 }

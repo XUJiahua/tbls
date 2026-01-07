@@ -26,15 +26,6 @@ func TestLoadDefault(t *testing.T) {
 	if want := ""; config.DSN.URL != want {
 		t.Errorf("got %v\nwant %v", config.DSN.URL, want)
 	}
-	if want := "dbdoc"; config.DocPath != want {
-		t.Errorf("got %v\nwant %v", config.DocPath, want)
-	}
-	if want := "svg"; config.ER.Format != want {
-		t.Errorf("got %v\nwant %v", config.ER.Format, want)
-	}
-	if want := 1; *config.ER.Distance != want {
-		t.Errorf("got %v\nwant %v", config.ER.Distance, want)
-	}
 }
 
 func TestLoadConfigFile(t *testing.T) {
@@ -52,14 +43,6 @@ func TestLoadConfigFile(t *testing.T) {
 
 	if want := "pg://root:pgpass@localhost:55432/testdb?sslmode=disable"; config.DSN.URL != want {
 		t.Errorf("got %v\nwant %v", config.DSN.URL, want)
-	}
-
-	if want := "sample/pg"; config.DocPath != want {
-		t.Errorf("got %v\nwant %v", config.DocPath, want)
-	}
-
-	if want := "INDEX"; config.MergedDict.Lookup("Indexes") != want {
-		t.Errorf("got %v\nwant %v", config.MergedDict.Lookup("Indexes"), want)
 	}
 }
 
@@ -337,35 +320,6 @@ func TestMergeDetectedRelations(t *testing.T) {
 	}
 }
 
-func TestValidate(t *testing.T) {
-	tests := []struct {
-		erFormat string
-		wantErr  bool
-	}{
-		{"", true},
-		{"png", false},
-		{"mermaid", false},
-		{"invalid", true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.erFormat, func(t *testing.T) {
-			c, err := New()
-			if err != nil {
-				t.Fatal(err)
-			}
-			c.ER.Format = tt.erFormat
-			if err := c.validate(); err != nil {
-				if !tt.wantErr {
-					t.Errorf("got error: %s", err)
-				}
-				return
-			}
-			if tt.wantErr {
-				t.Error("want error")
-			}
-		})
-	}
-}
 
 func TestCheckVersion(t *testing.T) {
 	tests := []struct {
@@ -392,72 +346,6 @@ func TestCheckVersion(t *testing.T) {
 	}
 }
 
-func TestNeedToGenerateERImages(t *testing.T) {
-	tests := []struct {
-		c    *Config
-		want bool
-	}{
-		{&Config{ER: ER{Skip: true}}, false},
-		{&Config{ER: ER{Format: "png"}}, true},
-		{&Config{ER: ER{Format: "mermaid"}}, false},
-	}
-	for i, tt := range tests {
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
-			got := tt.c.NeedToGenerateERImages()
-			if got != tt.want {
-				t.Errorf("got %v\nwant %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestDetectShowColumnsForER(t *testing.T) {
-	tests := []struct {
-		showColumnTypes   *ShowColumnTypes
-		wantColumnCount   int
-		wantRelationCount int
-	}{
-		{nil, 13, 3},
-		{&ShowColumnTypes{Related: true, Primary: false}, 5, 3},
-		{&ShowColumnTypes{Related: false, Primary: true}, 0, 0},
-		{&ShowColumnTypes{Related: true, Primary: true}, 5, 3},
-	}
-	for _, tt := range tests {
-		t.Run(fmt.Sprintf("%v", tt.showColumnTypes), func(t *testing.T) {
-			c, err := New()
-			if err != nil {
-				t.Fatal(err)
-			}
-			c.ER.ShowColumnTypes = tt.showColumnTypes
-			s := newTestSchemaViaJSON(t)
-			if err := c.ModifySchema(s); err != nil {
-				t.Fatal(err)
-			}
-			var (
-				gotColumnCount   int
-				gotRelationCount int
-			)
-			for _, tt := range s.Tables {
-				for _, cc := range tt.Columns {
-					if !cc.HideForER {
-						gotColumnCount++
-					}
-				}
-			}
-			for _, r := range s.Relations {
-				if !r.HideForER {
-					gotRelationCount++
-				}
-			}
-			if gotColumnCount != tt.wantColumnCount {
-				t.Errorf("got %v\nwant %v", gotColumnCount, tt.wantColumnCount)
-			}
-			if gotRelationCount != tt.wantRelationCount {
-				t.Errorf("got %v\nwant %v", gotRelationCount, tt.wantRelationCount)
-			}
-		})
-	}
-}
 
 func newTestSchemaViaJSON(t *testing.T) *schema.Schema {
 	t.Helper()

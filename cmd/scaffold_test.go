@@ -13,12 +13,7 @@ func TestGenerateScaffoldConfig(t *testing.T) {
 		DSN: config.DSN{
 			URL: "postgres://user:pass@localhost:5432/testdb",
 		},
-		DocPath: "dbdoc",
-		ER: config.ER{
-			Format: "svg",
-		},
 	}
-	c.ER.Distance = &config.DefaultERDistance
 
 	// Create a minimal schema
 	s := &schema.Schema{
@@ -60,19 +55,6 @@ func TestGenerateScaffoldConfig(t *testing.T) {
 	// Verify DSN is preserved
 	if scaffolded.DSN.URL != c.DSN.URL {
 		t.Errorf("DSN.URL mismatch: got %s, want %s", scaffolded.DSN.URL, c.DSN.URL)
-	}
-
-	// Verify DocPath is preserved
-	if scaffolded.DocPath != c.DocPath {
-		t.Errorf("DocPath mismatch: got %s, want %s", scaffolded.DocPath, c.DocPath)
-	}
-
-	// Verify ER settings
-	if scaffolded.ER.Format != "svg" {
-		t.Errorf("ER.Format mismatch: got %s, want svg", scaffolded.ER.Format)
-	}
-	if scaffolded.ER.Distance != 1 {
-		t.Errorf("ER.Distance mismatch: got %d, want 1", scaffolded.ER.Distance)
 	}
 
 	// Verify Stats defaults

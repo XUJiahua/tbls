@@ -1,3 +1,0 @@
-erDiagram
-
-"b" }|--|| "a" : "FOREIGN KEY (b) REFERENCES a(a)"

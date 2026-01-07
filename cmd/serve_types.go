@@ -23,8 +23,8 @@ type SchemaRequest struct {
 	Exclude []string `json:"exclude,omitempty" example:"*_backup,*_temp,*_log"`
 	// Distance is the relation distance for filtering
 	Distance int `json:"distance,omitempty"`
-	// Format contains output format settings
-	Format *FormatConfig `json:"format,omitempty"`
+	// Sort tables and columns alphabetically
+	Sort bool `json:"sort,omitempty"`
 	// DetectVirtualRelations configures virtual relation detection
 	DetectVirtualRelations *DetectVirtualRelationsConfig `json:"detectVirtualRelations,omitempty"`
 	// Stats configures statistics collection
@@ -40,15 +40,6 @@ type DSNConfig struct {
 	URL string `json:"url" binding:"required" example:"postgres://user:pass@localhost:5432/dbname"`
 	// Headers are custom headers for HTTP-based connections
 	Headers map[string]string `json:"headers,omitempty"`
-}
-
-// FormatConfig contains output format settings
-// @Description Output format settings
-type FormatConfig struct {
-	// Sort tables and columns alphabetically
-	Sort bool `json:"sort,omitempty"`
-	// Adjust column widths
-	Adjust bool `json:"adjust,omitempty"`
 }
 
 // DetectVirtualRelationsConfig configures virtual relation detection
@@ -198,37 +189,12 @@ type APIScaffoldConfig struct {
 	Desc                   string                            `json:"desc,omitempty"`
 	Labels                 []string                          `json:"labels,omitempty"`
 	DSN                    config.DSN                        `json:"dsn"`
-	DocPath                string                            `json:"docPath"`
-	Format                 APIScaffoldFormatConfig           `json:"format"`
-	ER                     APIScaffoldERConfig               `json:"er"`
 	Include                []string                          `json:"include,omitempty"`
 	Exclude                []string                          `json:"exclude,omitempty"`
+	Sort                   bool                              `json:"sort"`
 	DetectVirtualRelations APIScaffoldDetectVirtualRelConfig `json:"detectVirtualRelations"`
 	Stats                  APIScaffoldStatsConfig            `json:"stats"`
-	BaseURL                string                            `json:"baseUrl,omitempty"`
 	RequiredVersion        string                            `json:"requiredVersion,omitempty"`
-}
-
-// APIScaffoldFormatConfig represents format settings
-// @Description Document format settings
-type APIScaffoldFormatConfig struct {
-	Adjust                   bool     `json:"adjust"`
-	Sort                     bool     `json:"sort"`
-	Number                   bool     `json:"number"`
-	ShowOnlyFirstParagraph   bool     `json:"showOnlyFirstParagraph"`
-	HideColumnsWithoutValues []string `json:"hideColumnsWithoutValues,omitempty"`
-}
-
-// APIScaffoldERConfig represents ER diagram settings
-// @Description ER diagram generation settings
-type APIScaffoldERConfig struct {
-	Skip            bool                    `json:"skip"`
-	Format          string                  `json:"format" example:"svg"`
-	Comment         bool                    `json:"comment"`
-	HideDef         bool                    `json:"hideDef"`
-	ShowColumnTypes *config.ShowColumnTypes `json:"showColumnTypes,omitempty"`
-	Distance        int                     `json:"distance" example:"1"`
-	Font            string                  `json:"font,omitempty"`
 }
 
 // APIScaffoldDetectVirtualRelConfig represents virtual relation detection settings
@@ -292,11 +258,7 @@ func (r *SchemaRequest) toConfig() config.Config {
 		Include:  r.Include,
 		Exclude:  r.Exclude,
 		Distance: r.Distance,
-	}
-
-	if r.Format != nil {
-		cfg.Format.Sort = r.Format.Sort
-		cfg.Format.Adjust = r.Format.Adjust
+		Sort:     r.Sort,
 	}
 
 	if r.DetectVirtualRelations != nil {

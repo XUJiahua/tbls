@@ -35,13 +35,7 @@ import (
 	"github.com/k1LoW/tbls/datasource"
 	"github.com/k1LoW/tbls/output"
 	tbls_config "github.com/k1LoW/tbls/output/config"
-	"github.com/k1LoW/tbls/output/dot"
-	"github.com/k1LoW/tbls/output/gviz"
 	"github.com/k1LoW/tbls/output/json"
-	"github.com/k1LoW/tbls/output/md"
-	"github.com/k1LoW/tbls/output/mermaid"
-	"github.com/k1LoW/tbls/output/plantuml"
-	"github.com/k1LoW/tbls/output/xlsx"
 	"github.com/k1LoW/tbls/output/yaml"
 	"github.com/k1LoW/tbls/stats"
 	"github.com/spf13/cobra"
@@ -129,24 +123,10 @@ var outCmd = &cobra.Command{
 			o = json.New(false)
 		case "yaml":
 			o = new(yaml.YAML)
-		case "dot":
-			o = dot.New(c)
-		case "md":
-			c.ER.Skip = true
-			o = md.New(c)
-		case "xlsx":
-			o = xlsx.New(c)
-		case "plantuml":
-			o = plantuml.New(c)
-		case "mermaid":
-			o = mermaid.New(c)
-		case "png", "svg", "jpg":
-			c.ER.Format = format
-			o = gviz.New(c)
 		case "config":
 			o = tbls_config.New(c)
 		default:
-			return fmt.Errorf("unsupported format '%s'", format)
+			return fmt.Errorf("unsupported format '%s' (supported: json, yaml, config)", format)
 		}
 
 		var wr io.Writer

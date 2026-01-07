@@ -39,26 +39,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// adjust is a flag on whether to adjust the notation width of the table.
-var adjust bool
-
-// force is a flag on whether to force generate.
-var force bool
-
 // sort is a flag on whether to sort tables, columns, and more.
 var sort bool
 
 // configPath is a config file path.
 var configPath string
 
-// erFormat is a option that ER diagram file format.
-var erFormat string
-
 // when is a option that command execute condition.
 var when string
-
-// base url for links.
-var baseURL string
 
 // tables to include.
 var includes []string
