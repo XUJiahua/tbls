@@ -6,16 +6,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"time"
 
+	"github.com/k1LoW/tbls/checkpoint"
 	"github.com/k1LoW/tbls/schema"
 )
 
 const (
-	CheckpointVersion  = 1
-	CheckpointFileName = ".tbls-stats-checkpoint.json"
+	CheckpointVersion = 1
 )
 
 // ColumnStatsCheckpoint stores partial column stats
@@ -51,23 +50,29 @@ type Checkpoint struct {
 
 // CheckpointManager manages checkpoint files
 type CheckpointManager struct {
-	docPath string
-	ttl     time.Duration
-	force   bool
+	dsnURL string
+	ttl    time.Duration
+	force  bool
 }
 
-// NewCheckpointManager creates a new checkpoint manager
-func NewCheckpointManager(docPath string, ttl time.Duration, force bool) *CheckpointManager {
+// NewCheckpointManager creates a new checkpoint manager.
+// dsnURL is used to determine the checkpoint file path via hash.
+func NewCheckpointManager(dsnURL string, ttl time.Duration, force bool) *CheckpointManager {
 	return &CheckpointManager{
-		docPath: docPath,
-		ttl:     ttl,
-		force:   force,
+		dsnURL: dsnURL,
+		ttl:    ttl,
+		force:  force,
 	}
 }
 
 // checkpointPath returns the full path to the checkpoint file
 func (m *CheckpointManager) checkpointPath() string {
-	return filepath.Join(m.docPath, CheckpointFileName)
+	return checkpoint.GetCheckpointPath(m.dsnURL)
+}
+
+// DSNHash returns the hash of the DSN URL used for this checkpoint
+func (m *CheckpointManager) DSNHash() string {
+	return checkpoint.HashDSNURL(m.dsnURL)
 }
 
 // Load loads a checkpoint if it exists and is valid
@@ -117,9 +122,9 @@ func (m *CheckpointManager) Load(dsnHash, schemaHash string) (*Checkpoint, error
 
 // Save saves a checkpoint to disk
 func (m *CheckpointManager) Save(cp *Checkpoint) error {
-	// Ensure directory exists
-	if err := os.MkdirAll(m.docPath, 0755); err != nil {
-		return fmt.Errorf("failed to create directory: %w", err)
+	// Ensure checkpoint directory exists
+	if err := checkpoint.EnsureCheckpointDir(); err != nil {
+		return fmt.Errorf("failed to create checkpoint directory: %w", err)
 	}
 
 	cp.UpdatedAt = time.Now()

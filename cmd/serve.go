@@ -26,6 +26,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/k1LoW/tbls/checkpoint"
 	"github.com/k1LoW/tbls/config"
 	"github.com/k1LoW/tbls/datasource"
 	"github.com/k1LoW/tbls/schema"
@@ -228,11 +229,14 @@ func convertToAPIScaffoldConfig(s *ScaffoldConfig) *APIScaffoldConfig {
 // handleSchemaAsync godoc
 // @Summary Submit schema analysis task
 // @Description Analyze a database asynchronously. Returns a task ID immediately for progress polling.
+// @Description If a task is already running for the same DSN, returns the existing task ID.
+// @Description Use force=true to ignore checkpoint and start fresh.
 // @Tags Schema
 // @Accept json
 // @Produce json
 // @Param request body SchemaRequest true "Schema analysis request"
 // @Success 202 {object} TaskAcceptedResponse "Task accepted"
+// @Success 200 {object} TaskExistsResponse "Task already running for this DSN"
 // @Failure 400 {object} ErrorResponse "Bad request"
 // @Router /schema [post]
 func handleSchemaAsync(c *gin.Context) {
@@ -252,8 +256,28 @@ func handleSchemaAsync(c *gin.Context) {
 		return
 	}
 
+	// Calculate DSN hash for checkpoint addressing
+	dsnHash := checkpoint.HashDSNURL(req.DSN.URL)
+
+	// Check if there's already a running task for this DSN
+	existingTaskID := taskStore.GetRunningByDSNHash(dsnHash)
+	if existingTaskID != "" {
+		c.JSON(http.StatusOK, TaskExistsResponse{
+			TaskID:  existingTaskID,
+			Status:  "running",
+			Message: "task already running for this DSN",
+		})
+		return
+	}
+
 	// Convert to config
 	cfg := req.toConfig()
+
+	// Handle force flag - delete existing checkpoint
+	if req.Force {
+		checkpoint.DeleteCheckpoint(req.DSN.URL)
+		cfg.Stats.Checkpoint.Force = true
+	}
 
 	// Generate task ID
 	taskID := uuid.New().String()
@@ -261,14 +285,18 @@ func handleSchemaAsync(c *gin.Context) {
 	// Create task status
 	taskStatus := &stats.TaskStatus{
 		TaskID:    taskID,
+		DSNHash:   dsnHash,
 		Status:    "pending",
 		Stage:     stats.StageAnalyzing,
 		StartedAt: time.Now(),
 	}
 	taskStore.Set(taskID, taskStatus)
 
+	// Track DSN hash to task ID mapping
+	taskStore.SetDSNHash(dsnHash, taskID)
+
 	// Start async processing
-	go processSchemaAsync(taskID, cfg)
+	go processSchemaAsync(taskID, dsnHash, cfg)
 
 	c.JSON(http.StatusAccepted, TaskAcceptedResponse{
 		TaskID: taskID,
@@ -276,7 +304,10 @@ func handleSchemaAsync(c *gin.Context) {
 	})
 }
 
-func processSchemaAsync(taskID string, cfg config.Config) {
+func processSchemaAsync(taskID, dsnHash string, cfg config.Config) {
+	// Ensure DSN hash mapping is cleared when task completes
+	defer taskStore.ClearDSNHash(dsnHash)
+
 	// Create progress reporter
 	reporter := stats.NewTaskProgressReporter(taskID, taskStore)
 

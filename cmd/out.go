@@ -29,6 +29,7 @@ import (
 	"syscall"
 
 	"github.com/k1LoW/errors"
+	"github.com/k1LoW/tbls/checkpoint"
 	"github.com/k1LoW/tbls/cmdutil"
 	"github.com/k1LoW/tbls/config"
 	"github.com/k1LoW/tbls/datasource"
@@ -83,6 +84,8 @@ var outCmd = &cobra.Command{
 
 		// Apply command line overrides for checkpoint settings
 		if outForceStats {
+			// Delete existing checkpoint when force is used
+			checkpoint.DeleteCheckpoint(c.DSN.URL)
 			c.Stats.Checkpoint.Force = true
 		}
 		if outNoCheckpoint {

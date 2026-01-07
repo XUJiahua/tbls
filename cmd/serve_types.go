@@ -101,6 +101,17 @@ type TaskAcceptedResponse struct {
 	Status string `json:"status" example:"pending"`
 }
 
+// TaskExistsResponse is returned when a task already exists for the DSN
+// @Description Response when a task is already running for the same DSN
+type TaskExistsResponse struct {
+	// TaskID is the existing task identifier
+	TaskID string `json:"task_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	// Status is the existing task status
+	Status string `json:"status" example:"running"`
+	// Message explains why a new task was not created
+	Message string `json:"message" example:"task already running for this DSN"`
+}
+
 // TaskStatusResponse contains task status and progress information
 // @Description Task status and progress information
 type TaskStatusResponse struct {

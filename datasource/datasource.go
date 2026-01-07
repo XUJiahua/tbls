@@ -19,6 +19,7 @@ import (
 	"github.com/k1LoW/errors"
 	"github.com/k1LoW/ghfs"
 	"github.com/k1LoW/go-github-client/v67/factory"
+	"github.com/k1LoW/tbls/checkpoint"
 	"github.com/k1LoW/tbls/config"
 	"github.com/k1LoW/tbls/drivers"
 	"github.com/k1LoW/tbls/drivers/clickhouse"
@@ -263,8 +264,8 @@ func collectStatsWithProgress(ctx context.Context, s *schema.Schema, dsn config.
 			ttl = 24 * time.Hour
 		}
 
-		cpManager := stats.NewCheckpointManager(cfg.DocPath, ttl, cfg.Stats.Checkpoint.Force)
-		dsnHash := stats.HashDSN(dsn.URL)
+		cpManager := stats.NewCheckpointManager(dsn.URL, ttl, cfg.Stats.Checkpoint.Force)
+		dsnHash := cpManager.DSNHash()
 		schemaHash := stats.HashSchema(s)
 
 		// Try to load existing checkpoint
@@ -277,7 +278,10 @@ func collectStatsWithProgress(ctx context.Context, s *schema.Schema, dsn config.
 		if cp != nil {
 			if cp.Stage == stats.StageCompleted {
 				// Cache hit - use cached stats, skip collection
-				logrus.WithField("cached_at", cp.UpdatedAt.Format(time.RFC3339)).Info("Using cached stats")
+				logrus.WithFields(logrus.Fields{
+					"cached_at":       cp.UpdatedAt.Format(time.RFC3339),
+					"checkpoint_path": checkpoint.GetCheckpointPath(dsn.URL),
+				}).Info("Using cached stats")
 				stats.ApplyCheckpoint(s, cp)
 				return nil
 			}

@@ -106,27 +106,30 @@ func (r *CLIProgressReporter) Cancel() {
 
 // TaskStatus represents the status of an async task
 type TaskStatus struct {
-	TaskID               string    `json:"task_id"`
-	Status               string    `json:"status"` // pending, running, completed, failed, cancelled
-	Stage                Stage     `json:"stage,omitempty"`
-	Progress             *Progress `json:"progress,omitempty"`
-	ResumedFromCheckpoint bool     `json:"resumed_from_checkpoint,omitempty"`
-	StartedAt            time.Time `json:"started_at,omitempty"`
-	CompletedAt          time.Time `json:"completed_at,omitempty"`
-	Error                string    `json:"error,omitempty"`
-	Result               any       `json:"result,omitempty"`
+	TaskID                string    `json:"task_id"`
+	DSNHash               string    `json:"dsn_hash,omitempty"`
+	Status                string    `json:"status"` // pending, running, completed, failed, cancelled
+	Stage                 Stage     `json:"stage,omitempty"`
+	Progress              *Progress `json:"progress,omitempty"`
+	ResumedFromCheckpoint bool      `json:"resumed_from_checkpoint,omitempty"`
+	StartedAt             time.Time `json:"started_at,omitempty"`
+	CompletedAt           time.Time `json:"completed_at,omitempty"`
+	Error                 string    `json:"error,omitempty"`
+	Result                any       `json:"result,omitempty"`
 }
 
 // TaskStore stores task status for async operations
 type TaskStore struct {
-	tasks map[string]*TaskStatus
-	mu    sync.RWMutex
+	tasks          map[string]*TaskStatus
+	dsnHashToTask  map[string]string // maps DSN hash to task ID for running tasks
+	mu             sync.RWMutex
 }
 
 // NewTaskStore creates a new task store
 func NewTaskStore() *TaskStore {
 	return &TaskStore{
-		tasks: make(map[string]*TaskStatus),
+		tasks:         make(map[string]*TaskStatus),
+		dsnHashToTask: make(map[string]string),
 	}
 }
 
@@ -167,7 +170,47 @@ func (s *TaskStore) Update(taskID string, fn func(*TaskStatus)) {
 func (s *TaskStore) Delete(taskID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if task, ok := s.tasks[taskID]; ok {
+		// Also remove from DSN hash mapping
+		if task.DSNHash != "" {
+			delete(s.dsnHashToTask, task.DSNHash)
+		}
+	}
 	delete(s.tasks, taskID)
+}
+
+// GetRunningByDSNHash returns the task ID of a running task for the given DSN hash.
+// Returns empty string if no running task exists for this DSN.
+func (s *TaskStore) GetRunningByDSNHash(dsnHash string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	taskID, ok := s.dsnHashToTask[dsnHash]
+	if !ok {
+		return ""
+	}
+	// Verify the task is still running
+	task, ok := s.tasks[taskID]
+	if !ok || (task.Status != "pending" && task.Status != "running") {
+		return ""
+	}
+	return taskID
+}
+
+// SetDSNHash associates a DSN hash with a task ID
+func (s *TaskStore) SetDSNHash(dsnHash, taskID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.dsnHashToTask[dsnHash] = taskID
+	if task, ok := s.tasks[taskID]; ok {
+		task.DSNHash = dsnHash
+	}
+}
+
+// ClearDSNHash removes the DSN hash association for a task
+func (s *TaskStore) ClearDSNHash(dsnHash string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.dsnHashToTask, dsnHash)
 }
 
 // TaskProgressReporter implements ProgressReporter for REST API mode

@@ -374,6 +374,22 @@ definitions:
         example: 550e8400-e29b-41d4-a716-446655440000
         type: string
     type: object
+  cmd.TaskExistsResponse:
+    description: Response when a task is already running for the same DSN
+    properties:
+      message:
+        description: Message explains why a new task was not created
+        example: task already running for this DSN
+        type: string
+      status:
+        description: Status is the existing task status
+        example: running
+        type: string
+      task_id:
+        description: TaskID is the existing task identifier
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
   cmd.TaskNotRunningError:
     description: Error response when task is not running
     properties:
@@ -941,8 +957,10 @@ paths:
     post:
       consumes:
       - application/json
-      description: Analyze a database asynchronously. Returns a task ID immediately
-        for progress polling.
+      description: |-
+        Analyze a database asynchronously. Returns a task ID immediately for progress polling.
+        If a task is already running for the same DSN, returns the existing task ID.
+        Use force=true to ignore checkpoint and start fresh.
       parameters:
       - description: Schema analysis request
         in: body
@@ -953,6 +971,10 @@ paths:
       produces:
       - application/json
       responses:
+        "200":
+          description: Task already running for this DSN
+          schema:
+            $ref: '#/definitions/cmd.TaskExistsResponse'
         "202":
           description: Task accepted
           schema:

@@ -2,26 +2,28 @@ package stats
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/k1LoW/tbls/checkpoint"
 	"github.com/k1LoW/tbls/schema"
 )
 
+const testDSNURL = "postgres://test:test@localhost/testdb"
+
 func TestCheckpointManager(t *testing.T) {
-	// Create temp directory
-	tmpDir, err := os.MkdirTemp("", "tbls-checkpoint-test")
-	if err != nil {
-		t.Fatal(err)
+	// Clean up any existing checkpoint before and after tests
+	cleanup := func() {
+		checkpoint.DeleteCheckpoint(testDSNURL)
 	}
-	defer os.RemoveAll(tmpDir)
+	cleanup()
+	defer cleanup()
 
 	t.Run("Save and Load", func(t *testing.T) {
-		manager := NewCheckpointManager(tmpDir, 24*time.Hour, false)
+		manager := NewCheckpointManager(testDSNURL, 24*time.Hour, false)
 
 		cp := &Checkpoint{
-			DSNHash:    "test-dsn-hash",
+			DSNHash:    manager.DSNHash(),
 			SchemaHash: "test-schema-hash",
 			Stage:      StageCollectingStats,
 			Progress: CheckpointProgress{
@@ -38,13 +40,13 @@ func TestCheckpointManager(t *testing.T) {
 		}
 
 		// Verify file exists
-		path := filepath.Join(tmpDir, CheckpointFileName)
+		path := checkpoint.GetCheckpointPath(testDSNURL)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			t.Fatal("Checkpoint file not created")
 		}
 
 		// Load checkpoint
-		loaded, err := manager.Load("test-dsn-hash", "test-schema-hash")
+		loaded, err := manager.Load(manager.DSNHash(), "test-schema-hash")
 		if err != nil {
 			t.Fatalf("Failed to load checkpoint: %v", err)
 		}
@@ -63,7 +65,7 @@ func TestCheckpointManager(t *testing.T) {
 	})
 
 	t.Run("Load with wrong DSN hash", func(t *testing.T) {
-		manager := NewCheckpointManager(tmpDir, 24*time.Hour, false)
+		manager := NewCheckpointManager(testDSNURL, 24*time.Hour, false)
 
 		loaded, err := manager.Load("wrong-dsn-hash", "test-schema-hash")
 		if err != nil {
@@ -76,9 +78,9 @@ func TestCheckpointManager(t *testing.T) {
 	})
 
 	t.Run("Load with wrong schema hash", func(t *testing.T) {
-		manager := NewCheckpointManager(tmpDir, 24*time.Hour, false)
+		manager := NewCheckpointManager(testDSNURL, 24*time.Hour, false)
 
-		loaded, err := manager.Load("test-dsn-hash", "wrong-schema-hash")
+		loaded, err := manager.Load(manager.DSNHash(), "wrong-schema-hash")
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -89,9 +91,9 @@ func TestCheckpointManager(t *testing.T) {
 	})
 
 	t.Run("Load with force flag", func(t *testing.T) {
-		manager := NewCheckpointManager(tmpDir, 24*time.Hour, true) // force = true
+		manager := NewCheckpointManager(testDSNURL, 24*time.Hour, true) // force = true
 
-		loaded, err := manager.Load("test-dsn-hash", "test-schema-hash")
+		loaded, err := manager.Load(manager.DSNHash(), "test-schema-hash")
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}
@@ -102,7 +104,7 @@ func TestCheckpointManager(t *testing.T) {
 	})
 
 	t.Run("Delete checkpoint", func(t *testing.T) {
-		manager := NewCheckpointManager(tmpDir, 24*time.Hour, false)
+		manager := NewCheckpointManager(testDSNURL, 24*time.Hour, false)
 
 		// Delete checkpoint
 		if err := manager.Delete(); err != nil {
@@ -110,17 +112,17 @@ func TestCheckpointManager(t *testing.T) {
 		}
 
 		// Verify file is deleted
-		path := filepath.Join(tmpDir, CheckpointFileName)
+		path := checkpoint.GetCheckpointPath(testDSNURL)
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Error("Expected checkpoint file to be deleted")
 		}
 	})
 
 	t.Run("Load expired checkpoint", func(t *testing.T) {
-		manager := NewCheckpointManager(tmpDir, 1*time.Millisecond, false)
+		manager := NewCheckpointManager(testDSNURL, 1*time.Millisecond, false)
 
 		cp := &Checkpoint{
-			DSNHash:    "test-dsn-hash",
+			DSNHash:    manager.DSNHash(),
 			SchemaHash: "test-schema-hash",
 			Stage:      StageCollectingStats,
 		}
@@ -132,7 +134,7 @@ func TestCheckpointManager(t *testing.T) {
 		// Wait for checkpoint to expire
 		time.Sleep(10 * time.Millisecond)
 
-		loaded, err := manager.Load("test-dsn-hash", "test-schema-hash")
+		loaded, err := manager.Load(manager.DSNHash(), "test-schema-hash")
 		if err != nil {
 			t.Fatalf("Unexpected error: %v", err)
 		}

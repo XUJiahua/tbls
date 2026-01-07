@@ -67,7 +67,7 @@ const docTemplate = `{
         },
         "/schema": {
             "post": {
-                "description": "Analyze a database asynchronously. Returns a task ID immediately for progress polling.",
+                "description": "Analyze a database asynchronously. Returns a task ID immediately for progress polling.\nIf a task is already running for the same DSN, returns the existing task ID.\nUse force=true to ignore checkpoint and start fresh.",
                 "consumes": [
                     "application/json"
                 ],
@@ -90,6 +90,12 @@ const docTemplate = `{
                     }
                 ],
                 "responses": {
+                    "200": {
+                        "description": "Task already running for this DSN",
+                        "schema": {
+                            "$ref": "#/definitions/cmd.TaskExistsResponse"
+                        }
+                    },
                     "202": {
                         "description": "Task accepted",
                         "schema": {
@@ -719,6 +725,27 @@ const docTemplate = `{
                 },
                 "task_id": {
                     "description": "TaskID is the task identifier",
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                }
+            }
+        },
+        "cmd.TaskExistsResponse": {
+            "description": "Response when a task is already running for the same DSN",
+            "type": "object",
+            "properties": {
+                "message": {
+                    "description": "Message explains why a new task was not created",
+                    "type": "string",
+                    "example": "task already running for this DSN"
+                },
+                "status": {
+                    "description": "Status is the existing task status",
+                    "type": "string",
+                    "example": "running"
+                },
+                "task_id": {
+                    "description": "TaskID is the existing task identifier",
                     "type": "string",
                     "example": "550e8400-e29b-41d4-a716-446655440000"
                 }
