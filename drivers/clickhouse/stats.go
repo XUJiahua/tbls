@@ -349,9 +349,9 @@ func (ch *ClickHouse) getColumnStats(ctx context.Context, dbName, tableName, col
 				count() as row_count,
 				countIf(%s IS NULL) as null_count,
 				countDistinct(%s) as distinct_count,
-				min(%s) as min_val,
-				max(%s) as max_val,
-				avg(%s) as avg_val,
+				ifNull(min(%s), 0) as min_val,
+				ifNull(max(%s), 0) as max_val,
+				ifNull(avg(%s), 0) as avg_val,
 				'' as min_date,
 				'' as max_date,
 				0 as min_len,
@@ -386,9 +386,9 @@ func (ch *ClickHouse) getColumnStats(ctx context.Context, dbName, tableName, col
 				0 as avg_val,
 				'' as min_date,
 				'' as max_date,
-				min(length(%s)) as min_len,
-				max(length(%s)) as max_len,
-				avg(length(%s)) as avg_len
+				ifNull(min(length(%s)), 0) as min_len,
+				ifNull(max(length(%s)), 0) as max_len,
+				ifNull(avg(length(%s)), 0) as avg_len
 			%s
 		`, quotedCol, quotedCol, quotedCol, quotedCol, quotedCol, fromClause)
 	default:
