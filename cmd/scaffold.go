@@ -257,9 +257,9 @@ func buildStatsConfig(c *config.Config, s *schema.Schema, detectedDateColumns ma
 		recentDays = 30
 	}
 
-	// Build inference config
+	// Build inference config (default enabled to true for scaffold)
 	inference := ScaffoldInference{
-		Enabled:                 c.Stats.Inference.Enabled,
+		Enabled:                 true,
 		EnumMaxCardinality:      c.Stats.Inference.EnumMaxCardinality,
 		EnumMaxDistinct:         c.Stats.Inference.EnumMaxDistinct,
 		DictMaxCardinality:      c.Stats.Inference.DictMaxCardinality,
@@ -335,7 +335,7 @@ func buildStatsConfig(c *config.Config, s *schema.Schema, detectedDateColumns ma
 	}
 
 	return ScaffoldStats{
-		Enabled:             c.Stats.Enabled,
+		Enabled:             true, // Default to true for scaffold
 		Include:             c.Stats.Include,
 		Exclude:             c.Stats.Exclude,
 		TopN:                topN,
