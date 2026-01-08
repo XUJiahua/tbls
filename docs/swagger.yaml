@@ -590,6 +590,12 @@ definitions:
         type: array
       row_count:
         type: integer
+      skipped_complex_analysis:
+        description: |-
+          SkippedComplexAnalysis indicates that deep analysis (countDistinct, top values)
+          was skipped because the column type is not numeric/date/string.
+          Only basic stats (row_count, null_count) are collected for complex types.
+        type: boolean
       top_values:
         items:
           $ref: '#/definitions/schema.TopValue'

@@ -12,14 +12,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// numericTypeRe matches ClickHouse numeric types
-var numericTypeRe = regexp.MustCompile(`(?i)^(U?Int\d+|Float\d+|Decimal.*|Nullable\((U?Int\d+|Float\d+|Decimal.*)\))`)
+// numericTypeRe matches ClickHouse numeric types (including LowCardinality and Nullable wrappers)
+var numericTypeRe = regexp.MustCompile(`(?i)^(LowCardinality\()?(Nullable\()?(U?Int\d+|Float\d+|Decimal[^)]*)\)?(\))?\)?$`)
 
-// dateTypeRe matches ClickHouse date/datetime types
-var dateTypeRe = regexp.MustCompile(`(?i)^(Date|Date32|DateTime|DateTime64.*|Nullable\((Date|Date32|DateTime|DateTime64.*)\))`)
+// dateTypeRe matches ClickHouse date/datetime types (including LowCardinality and Nullable wrappers)
+var dateTypeRe = regexp.MustCompile(`(?i)^(LowCardinality\()?(Nullable\()?(Date|Date32|DateTime|DateTime64[^)]*)\)?(\))?\)?$`)
 
-// stringTypeRe matches ClickHouse string types
-var stringTypeRe = regexp.MustCompile(`(?i)^(String|FixedString.*|UUID|Nullable\((String|FixedString.*|UUID)\))`)
+// stringTypeRe matches ClickHouse string types (including LowCardinality and Nullable wrappers)
+var stringTypeRe = regexp.MustCompile(`(?i)^(LowCardinality\()?(Nullable\()?(String|FixedString[^)]*|UUID)\)?(\))?\)?$`)
 
 // backquote escapes ClickHouse identifiers
 func backquote(identifier string) string {
@@ -362,6 +362,17 @@ func (ch *ClickHouse) getColumnStats(ctx context.Context, dbName, tableName, col
 		%s
 	`, quotedCol, quotedCol, fromClause)
 
+	// Build minimal query for complex types (Array, Map, Tuple, Object, etc.)
+	// Skip all column operations - even NULL checks can be slow for complex types
+	minimalFromClause := fromClause
+	if !useDateFilter && sampleSize != -1 {
+		// For minimal query, we don't need to select the column in subquery
+		minimalFromClause = fmt.Sprintf("FROM (SELECT 1 FROM %s.%s LIMIT %d)", quotedDB, quotedTable, sampleSize)
+	}
+	minimalQuery := fmt.Sprintf(`
+		SELECT count() as row_count %s
+	`, minimalFromClause)
+
 	switch {
 	case isNumeric:
 		query = fmt.Sprintf(`
@@ -412,7 +423,29 @@ func (ch *ClickHouse) getColumnStats(ctx context.Context, dbName, tableName, col
 			%s
 		`, quotedCol, quotedCol, quotedCol, quotedCol, quotedCol, fromClause)
 	default:
-		query = fallbackQuery
+		// Complex type (Array, Map, Tuple, Object, etc.) - use minimal query
+		// Skip all column operations as they are slow and meaningless for complex types
+		log.WithFields(logrus.Fields{
+			"table":  tableName,
+			"column": colName,
+			"type":   colType,
+		}).Debug("skipping complex analysis for non-basic type")
+
+		log.WithField("query", strings.TrimSpace(minimalQuery)).Debug("executing SQL")
+		startTime := time.Now()
+		row := ch.db.QueryRowContext(ctx, minimalQuery)
+		var rowCount int64
+		if err := row.Scan(&rowCount); err != nil {
+			return nil, fmt.Errorf("minimal stats query failed: %w", err)
+		}
+		duration := time.Since(startTime).Milliseconds()
+
+		stats.RowCount = rowCount
+		stats.SkippedComplexAnalysis = true
+		stats.Queries = append(stats.Queries, schema.QueryRecord{SQL: strings.TrimSpace(minimalQuery), DurationMs: duration})
+
+		// Skip top values for complex types - toString() is also slow and meaningless
+		return stats, nil
 	}
 
 	log.WithField("query", strings.TrimSpace(query)).Debug("executing SQL")

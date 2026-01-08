@@ -1030,6 +1030,10 @@ const docTemplate = `{
                 "row_count": {
                     "type": "integer"
                 },
+                "skipped_complex_analysis": {
+                    "description": "SkippedComplexAnalysis indicates that deep analysis (countDistinct, top values)\nwas skipped because the column type is not numeric/date/string.\nOnly basic stats (row_count, null_count) are collected for complex types.",
+                    "type": "boolean"
+                },
                 "top_values": {
                     "type": "array",
                     "items": {

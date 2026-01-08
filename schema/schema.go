@@ -70,6 +70,10 @@ type ColumnStats struct {
 	// This typically happens when the column's metadata type doesn't match the actual data.
 	Fallback      bool   `json:"fallback,omitempty"`
 	FallbackError string `json:"fallback_error,omitempty"`
+	// SkippedComplexAnalysis indicates that deep analysis (countDistinct, top values)
+	// was skipped because the column type is not numeric/date/string.
+	// Only basic stats (row_count, null_count) are collected for complex types.
+	SkippedComplexAnalysis bool `json:"skipped_complex_analysis,omitempty"`
 }
 
 // TableStats holds table-level statistics
