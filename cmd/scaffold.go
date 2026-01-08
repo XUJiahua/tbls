@@ -17,8 +17,9 @@ import (
 )
 
 var (
-	scaffoldOut   string
-	scaffoldForce bool
+	scaffoldOut         string
+	scaffoldForce       bool
+	scaffoldInteractive bool
 )
 
 // scaffoldCmd represents the scaffold command.
@@ -36,6 +37,10 @@ Examples:
 
   # Generate config from DSN (no existing config)
   tbls scaffold --dsn "postgres://user:pass@localhost:5432/mydb"
+
+  # Interactive mode - select tables with fuzzy finder
+  tbls scaffold --dsn "postgres://..." --interactive
+  tbls scaffold -c .tbls.yml -i
 
   # Specify output file
   tbls scaffold -c .tbls.yml -o my-config.yml
@@ -75,6 +80,37 @@ Examples:
 		s, err := datasource.Analyze(c.DSN)
 		if err != nil {
 			return err
+		}
+
+		// Interactive mode: let user select tables
+		if scaffoldInteractive {
+			selectedTables, err := RunTableSelector(s.Tables)
+			if err != nil {
+				if err.Error() == "cancelled" {
+					fmt.Println("Cancelled.")
+					return nil
+				}
+				return err
+			}
+
+			if len(selectedTables) == 0 {
+				fmt.Print("No tables selected. Continue anyway? [y/N]: ")
+				reader := bufio.NewReader(os.Stdin)
+				response, err := reader.ReadString('\n')
+				if err != nil {
+					return err
+				}
+				response = strings.TrimSpace(strings.ToLower(response))
+				if response != "y" && response != "yes" {
+					fmt.Println("Aborted.")
+					return nil
+				}
+			}
+
+			// Filter schema to only selected tables
+			s = filterSchemaToTables(s, selectedTables)
+			// Set include in config
+			c.Include = selectedTables
 		}
 
 		// Detect date columns for stats configuration
@@ -390,4 +426,5 @@ func init() {
 	scaffoldCmd.Flags().StringVarP(&dsn, "dsn", "", "", "data source name (required if --config is not specified)")
 	scaffoldCmd.Flags().StringVarP(&scaffoldOut, "out", "o", "", "output file path (default: overwrite config file or .tbls.yml)")
 	scaffoldCmd.Flags().BoolVarP(&scaffoldForce, "force", "f", false, "force overwrite without prompt")
+	scaffoldCmd.Flags().BoolVarP(&scaffoldInteractive, "interactive", "i", false, "interactive mode - select tables with fuzzy finder")
 }
