@@ -12,6 +12,7 @@ import (
 	"github.com/k1LoW/tbls/config"
 	"github.com/k1LoW/tbls/datasource"
 	"github.com/k1LoW/tbls/schema"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -76,8 +77,16 @@ Examples:
 			return err
 		}
 
+		// Detect date columns for stats configuration
+		detectedDateColumns, err := datasource.DetectDateColumns(c.DSN, s)
+		if err != nil {
+			// Log warning but continue - date column detection is optional
+			logrus.WithError(err).Warn("failed to detect date columns")
+			detectedDateColumns = make(map[string]string)
+		}
+
 		// Generate scaffolded config
-		scaffolded, err := GenerateScaffoldConfig(c, s)
+		scaffolded, err := GenerateScaffoldConfig(c, s, detectedDateColumns)
 		if err != nil {
 			return err
 		}
@@ -124,17 +133,16 @@ type ScaffoldDetectVirtualRelations struct {
 
 // ScaffoldStats represents stats settings with all options.
 type ScaffoldStats struct {
-	Enabled             bool                                 `yaml:"enabled"`
-	Include             []string                             `yaml:"include,omitempty"`
-	Exclude             []string                             `yaml:"exclude,omitempty"`
-	TopN                int                                  `yaml:"topN"`
-	SampleSize          int                                  `yaml:"sampleSize"`
-	LargeTableThreshold int64                                `yaml:"largeTableThreshold"`
-	RecentDays          int                                  `yaml:"recentDays"`
-	DateColumn          string                               `yaml:"dateColumn,omitempty"`
-	Inference           ScaffoldInference                    `yaml:"inference"`
-	Checkpoint          ScaffoldCheckpoint                   `yaml:"checkpoint"`
-	Tables              map[string]ScaffoldTableStatsConfig  `yaml:"tables,omitempty"`
+	Enabled             bool                       `yaml:"enabled"`
+	Include             []string                   `yaml:"include,omitempty"`
+	Exclude             []string                   `yaml:"exclude,omitempty"`
+	TopN                int                        `yaml:"topN"`
+	SampleSize          int                        `yaml:"sampleSize"`
+	LargeTableThreshold int64                      `yaml:"largeTableThreshold"`
+	RecentDays          int                        `yaml:"recentDays"`
+	Inference           ScaffoldInference          `yaml:"inference"`
+	Checkpoint          ScaffoldCheckpoint         `yaml:"checkpoint"`
+	Tables              []ScaffoldTableStatsConfig `yaml:"tables,omitempty"`
 }
 
 // ScaffoldInference represents inference settings.
@@ -154,15 +162,21 @@ type ScaffoldCheckpoint struct {
 	Force   bool   `yaml:"force"`
 }
 
-// ScaffoldTableStatsConfig represents per-table stats settings.
+// ScaffoldTableStatsConfig represents per-table stats settings with explicit sampling mode.
+// Mode determines how the table is sampled:
+//   - date_filter: query recent data within RecentDays using DateColumn
+//   - row_limit: query first SampleSize rows (-1 means no limit)
 type ScaffoldTableStatsConfig struct {
-	DateColumn string `yaml:"dateColumn,omitempty"`
-	Skip       bool   `yaml:"skip"`
+	Name       string              `yaml:"name"`
+	Mode       config.SamplingMode `yaml:"mode"`
+	DateColumn string              `yaml:"dateColumn,omitempty"`
+	SampleSize int                 `yaml:"sampleSize,omitempty"`
 }
 
 // GenerateScaffoldConfig generates a complete scaffolded config from config and schema.
 // This function is exported for use by the serve API.
-func GenerateScaffoldConfig(c *config.Config, s *schema.Schema) (*ScaffoldConfig, error) {
+// detectedDateColumns is an optional map of table name to detected date column name.
+func GenerateScaffoldConfig(c *config.Config, s *schema.Schema, detectedDateColumns map[string]string) (*ScaffoldConfig, error) {
 	scaffolded := &ScaffoldConfig{
 		Name:    c.Name,
 		Desc:    c.Desc,
@@ -175,7 +189,7 @@ func GenerateScaffoldConfig(c *config.Config, s *schema.Schema) (*ScaffoldConfig
 			Enabled:  c.DetectVirtualRelations.Enabled,
 			Strategy: c.DetectVirtualRelations.Strategy,
 		},
-		Stats:           buildStatsConfig(c, s),
+		Stats:           buildStatsConfig(c, s, detectedDateColumns),
 		RequiredVersion: c.RequiredVersion,
 	}
 
@@ -183,7 +197,8 @@ func GenerateScaffoldConfig(c *config.Config, s *schema.Schema) (*ScaffoldConfig
 }
 
 // buildStatsConfig builds ScaffoldStats from config and schema.
-func buildStatsConfig(c *config.Config, s *schema.Schema) ScaffoldStats {
+// detectedDateColumns is an optional map of table name to auto-detected date column name.
+func buildStatsConfig(c *config.Config, s *schema.Schema, detectedDateColumns map[string]string) ScaffoldStats {
 	// Get default values
 	defaultInference := config.DefaultInferenceConfig()
 	defaultCheckpoint := config.DefaultCheckpointConfig()
@@ -244,17 +259,43 @@ func buildStatsConfig(c *config.Config, s *schema.Schema) ScaffoldStats {
 	}
 
 	// Build per-table stats config from schema
-	tables := make(map[string]ScaffoldTableStatsConfig)
+	// Priority: user config > auto-detected value > global default
+	var tables []ScaffoldTableStatsConfig
 	for _, t := range s.Tables {
 		tableCfg := ScaffoldTableStatsConfig{
-			Skip: false,
+			Name: t.Name,
 		}
-		// Check if there's existing config for this table
-		if existing, ok := c.Stats.Tables[t.Name]; ok {
-			tableCfg.DateColumn = existing.DateColumn
-			tableCfg.Skip = existing.Skip
+
+		// Check user config first (highest priority)
+		userConfig := findUserTableConfig(c.Stats.Tables, t.Name)
+		if userConfig != nil && userConfig.Mode != "" {
+			// User explicitly set mode
+			tableCfg.Mode = config.SamplingMode(userConfig.Mode)
+			tableCfg.DateColumn = userConfig.DateColumn
+			tableCfg.SampleSize = userConfig.SampleSize
+		} else {
+			// Auto-detect: try date column first, fall back to row limit
+			var detectedDateCol string
+			if detectedDateColumns != nil {
+				detectedDateCol = detectedDateColumns[t.Name]
+			}
+			// User can override detected date column
+			if userConfig != nil && userConfig.DateColumn != "" {
+				detectedDateCol = userConfig.DateColumn
+			}
+
+			if detectedDateCol != "" {
+				// Use date filter mode
+				tableCfg.Mode = config.SamplingModeDateFilter
+				tableCfg.DateColumn = detectedDateCol
+			} else {
+				// Fall back to row limit mode with global sampleSize
+				tableCfg.Mode = config.SamplingModeRowLimit
+				tableCfg.SampleSize = sampleSize
+			}
 		}
-		tables[t.Name] = tableCfg
+
+		tables = append(tables, tableCfg)
 	}
 
 	return ScaffoldStats{
@@ -265,11 +306,20 @@ func buildStatsConfig(c *config.Config, s *schema.Schema) ScaffoldStats {
 		SampleSize:          sampleSize,
 		LargeTableThreshold: largeTableThreshold,
 		RecentDays:          recentDays,
-		DateColumn:          c.Stats.DateColumn,
 		Inference:           inference,
 		Checkpoint:          checkpoint,
 		Tables:              tables,
 	}
+}
+
+// findUserTableConfig searches for a table config by name in the list
+func findUserTableConfig(tables []config.TableStatsConfig, tableName string) *config.TableStatsConfig {
+	for i := range tables {
+		if tables[i].Name == tableName {
+			return &tables[i]
+		}
+	}
+	return nil
 }
 
 // writeScaffoldOutput writes the scaffolded config to file with overwrite prompt.

@@ -31,6 +31,7 @@ import (
 	"github.com/k1LoW/tbls/datasource"
 	"github.com/k1LoW/tbls/schema"
 	"github.com/k1LoW/tbls/stats"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -136,8 +137,16 @@ func handleScaffold(c *gin.Context) {
 		return
 	}
 
+	// Detect date columns for stats configuration
+	detectedDateColumns, err := datasource.DetectDateColumns(cfg.DSN, s)
+	if err != nil {
+		// Log warning but continue - date column detection is optional
+		logrus.WithError(err).Warn("failed to detect date columns")
+		detectedDateColumns = make(map[string]string)
+	}
+
 	// Generate scaffolded config using existing logic
-	scaffolded, err := GenerateScaffoldConfig(cfg, s)
+	scaffolded, err := GenerateScaffoldConfig(cfg, s, detectedDateColumns)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: err.Error(),
@@ -155,13 +164,15 @@ func handleScaffold(c *gin.Context) {
 
 // convertToAPIScaffoldConfig converts internal ScaffoldConfig to API response format
 func convertToAPIScaffoldConfig(s *ScaffoldConfig) *APIScaffoldConfig {
-	// Convert tables map
-	tables := make(map[string]APIScaffoldTableStatConfig)
-	for k, v := range s.Stats.Tables {
-		tables[k] = APIScaffoldTableStatConfig{
+	// Convert tables list
+	var tables []APIScaffoldTableStatConfig
+	for _, v := range s.Stats.Tables {
+		tables = append(tables, APIScaffoldTableStatConfig{
+			Name:       v.Name,
+			Mode:       string(v.Mode),
 			DateColumn: v.DateColumn,
-			Skip:       v.Skip,
-		}
+			SampleSize: v.SampleSize,
+		})
 	}
 
 	return &APIScaffoldConfig{
@@ -184,7 +195,6 @@ func convertToAPIScaffoldConfig(s *ScaffoldConfig) *APIScaffoldConfig {
 			SampleSize:          s.Stats.SampleSize,
 			LargeTableThreshold: s.Stats.LargeTableThreshold,
 			RecentDays:          s.Stats.RecentDays,
-			DateColumn:          s.Stats.DateColumn,
 			Inference: APIScaffoldInferenceConfig{
 				Enabled:                 s.Stats.Inference.Enabled,
 				EnumMaxCardinality:      s.Stats.Inference.EnumMaxCardinality,

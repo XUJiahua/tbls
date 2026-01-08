@@ -4,6 +4,7 @@ import (
 	"regexp"
 
 	"github.com/k1LoW/tbls/drivers"
+	"github.com/k1LoW/tbls/schema"
 	"github.com/sirupsen/logrus"
 )
 
@@ -144,7 +145,7 @@ func (ch *ClickHouse) resolveViewDateColumn(dbName string, meta *TableMeta, visi
 	visited[underlyingTable] = true
 
 	// Get underlying table's date column (recursive)
-	underlyingDateCol := ch.getDateColumnForTableInternal(dbName, underlyingTable, "", nil, visited)
+	underlyingDateCol := ch.getDateColumnForTableInternal(dbName, underlyingTable, nil, visited)
 	if underlyingDateCol == "" {
 		log.WithFields(logrus.Fields{
 			"view":             meta.Name,
@@ -184,39 +185,36 @@ func truncateString(s string, maxLen int) string {
 // getDateColumnForTable returns the date column for filtering stats queries
 // Priority: user config > auto-detect view > auto-detect table > empty
 func (ch *ClickHouse) getDateColumnForTable(dbName, tableName string, cfg drivers.StatsConfig) string {
-	return ch.getDateColumnForTableInternal(dbName, tableName, cfg.DateColumn, cfg.Tables, make(map[string]bool))
+	return ch.getDateColumnForTableInternal(dbName, tableName, cfg.Tables, make(map[string]bool))
+}
+
+// findTableConfig searches for a table config by name in the list
+func findTableConfig(tables []drivers.TableStatsConfig, tableName string) *drivers.TableStatsConfig {
+	for i := range tables {
+		if tables[i].Name == tableName {
+			return &tables[i]
+		}
+	}
+	return nil
 }
 
 // getDateColumnForTableInternal is the internal implementation with recursion tracking
 func (ch *ClickHouse) getDateColumnForTableInternal(
 	dbName, tableName string,
-	globalDateColumn string,
-	tables map[string]drivers.TableStatsConfig,
+	tables []drivers.TableStatsConfig,
 	visited map[string]bool,
 ) string {
 	// Priority 1: Table-level config
-	if tables != nil {
-		if tableConfig, ok := tables[tableName]; ok && tableConfig.DateColumn != "" {
-			log.WithFields(logrus.Fields{
-				"table":       tableName,
-				"date_column": tableConfig.DateColumn,
-				"source":      "table config",
-			}).Debug("using configured date column")
-			return tableConfig.DateColumn
-		}
-	}
-
-	// Priority 2: Global config
-	if globalDateColumn != "" {
+	if tableConfig := findTableConfig(tables, tableName); tableConfig != nil && tableConfig.DateColumn != "" {
 		log.WithFields(logrus.Fields{
 			"table":       tableName,
-			"date_column": globalDateColumn,
-			"source":      "global config",
+			"date_column": tableConfig.DateColumn,
+			"source":      "table config",
 		}).Debug("using configured date column")
-		return globalDateColumn
+		return tableConfig.DateColumn
 	}
 
-	// Priority 3 & 4: Auto-detect
+	// Priority 2: Auto-detect
 	meta, err := ch.getTableMeta(dbName, tableName)
 	if err != nil {
 		log.WithFields(logrus.Fields{
@@ -255,4 +253,20 @@ func (ch *ClickHouse) getDateColumnForTableInternal(
 		"suggestion": "add stats.tables." + tableName + ".dateColumn in config",
 	}).Debug("could not detect date column")
 	return ""
+}
+
+// DetectDateColumns implements the drivers.DateColumnDetector interface.
+// It returns a map of table name to detected date column for each table in the schema.
+func (ch *ClickHouse) DetectDateColumns(s *schema.Schema) (map[string]string, error) {
+	result := make(map[string]string)
+
+	for _, table := range s.Tables {
+		// Use nil for tables config since we want pure auto-detection
+		dateCol := ch.getDateColumnForTableInternal(s.Name, table.Name, nil, make(map[string]bool))
+		if dateCol != "" {
+			result[table.Name] = dateCol
+		}
+	}
+
+	return result, nil
 }

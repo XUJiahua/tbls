@@ -175,6 +175,47 @@ func AnalyzeContext(ctx context.Context, dsn config.DSN) (_ *schema.Schema, err 
 	return s, nil
 }
 
+// DetectDateColumns detects date columns for each table in the schema.
+// This is used by scaffold to populate the stats.tables configuration.
+// Returns a map of table name to detected date column name.
+func DetectDateColumns(dsn config.DSN, s *schema.Schema) (map[string]string, error) {
+	urlstr := dsn.URL
+
+	// ClickHouse HTTP protocol support
+	if strings.HasPrefix(urlstr, "clickhouse+http://") || strings.HasPrefix(urlstr, "clickhouse+https://") {
+		httpURL := strings.TrimPrefix(urlstr, "clickhouse+")
+		db, err := clickhouse.OpenHTTP(httpURL)
+		if err != nil {
+			return nil, err
+		}
+		defer db.Close()
+
+		driver := clickhouse.New(db)
+		return driver.DetectDateColumns(s)
+	}
+
+	// Handle standard ClickHouse via dburl
+	u, err := dburl.Parse(urlstr)
+	if err != nil {
+		// Not a supported driver, return empty map
+		return make(map[string]string), nil
+	}
+
+	if u.Driver == "clickhouse" {
+		db, err := dburl.Open(urlstr)
+		if err != nil {
+			return nil, err
+		}
+		defer db.Close()
+
+		driver := clickhouse.New(db)
+		return driver.DetectDateColumns(s)
+	}
+
+	// For other drivers, return empty map (no date column detection supported)
+	return make(map[string]string), nil
+}
+
 // AnalyzeWithStats analyzes database and optionally collects statistics
 func AnalyzeWithStats(dsn config.DSN, cfg *config.Config) (*schema.Schema, error) {
 	return AnalyzeWithStatsAndProgress(dsn, cfg, nil)
@@ -322,7 +363,6 @@ func collectStatsWithProgress(ctx context.Context, s *schema.Schema, dsn config.
 		RecentDays:          cfg.Stats.RecentDays,
 		Progress:            progressAdapter,
 		Checkpoint:          checkpointAdapter,
-		DateColumn:          cfg.Stats.DateColumn,
 		Tables:              convertTableStatsConfig(cfg.Stats.Tables),
 		Ctx:                 ctx,
 	}
@@ -573,16 +613,18 @@ func AnalyzeWithExtDriver(urlstr string) (*schema.Schema, error) {
 	return s, nil
 }
 
-// convertTableStatsConfig converts config.TableStatsConfig to drivers.TableStatsConfig
-func convertTableStatsConfig(tables map[string]config.TableStatsConfig) map[string]drivers.TableStatsConfig {
+// convertTableStatsConfig converts config.TableStatsConfig list to drivers.TableStatsConfig list
+func convertTableStatsConfig(tables []config.TableStatsConfig) []drivers.TableStatsConfig {
 	if tables == nil {
 		return nil
 	}
-	result := make(map[string]drivers.TableStatsConfig)
-	for k, v := range tables {
-		result[k] = drivers.TableStatsConfig{
+	result := make([]drivers.TableStatsConfig, len(tables))
+	for i, v := range tables {
+		result[i] = drivers.TableStatsConfig{
+			Name:       v.Name,
+			Mode:       drivers.SamplingMode(v.Mode),
 			DateColumn: v.DateColumn,
-			Skip:       v.Skip,
+			SampleSize: v.SampleSize,
 		}
 	}
 	return result

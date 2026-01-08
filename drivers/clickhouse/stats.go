@@ -54,12 +54,6 @@ func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) er
 	totalColumns := 0
 	totalTables := 0
 	for _, table := range s.Tables {
-		// Check table-level skip config
-		if cfg.Tables != nil {
-			if tableConfig, ok := cfg.Tables[table.Name]; ok && tableConfig.Skip {
-				continue
-			}
-		}
 		if shouldCollectStats(table.Name, cfg.Include, cfg.Exclude) {
 			totalTables++
 			totalColumns += len(table.Columns)
@@ -74,14 +68,6 @@ func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) er
 	completedTables := 0
 
 	for _, table := range s.Tables {
-		// Check if this table should be skipped via config
-		if cfg.Tables != nil {
-			if tableConfig, ok := cfg.Tables[table.Name]; ok && tableConfig.Skip {
-				log.WithField("table", table.Name).Debug("skipping table (configured)")
-				continue
-			}
-		}
-
 		// Check if this table should have stats collected
 		if !shouldCollectStats(table.Name, cfg.Include, cfg.Exclude) {
 			log.WithField("table", table.Name).Debug("skipping table (not in include list or in exclude list)")
@@ -113,22 +99,52 @@ func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) er
 			}).Debug("table stats")
 		}
 
-		// Get date column for filtering (auto-detect or from config)
-		dateCol := ch.getDateColumnForTable(s.Name, table.Name, cfg)
+		// Determine sampling mode for this table based on explicit Mode field
+		var useDateFilter bool
+		var dateCol string
+		var sampleSize int
 
-		// Determine if we should use date filtering
-		// For views (row_count=0), always use date filter if available
-		// For tables, only use if large
-		isLargeTable := table.Stats != nil && table.Stats.RowCount > cfg.LargeTableThreshold
-		isViewWithNoRows := table.Stats == nil || table.Stats.RowCount == 0
-		useDateFilter := dateCol != "" && (isViewWithNoRows || isLargeTable)
-
-		if useDateFilter {
+		tableConfig := cfg.GetTableConfig(table.Name)
+		if tableConfig != nil {
+			switch tableConfig.Mode {
+			case drivers.SamplingModeDateFilter:
+				// Mode: date_filter - use date column for filtering
+				useDateFilter = true
+				dateCol = tableConfig.DateColumn
+				log.WithFields(logrus.Fields{
+					"table":       table.Name,
+					"mode":        "date_filter",
+					"date_column": dateCol,
+					"recent_days": cfg.RecentDays,
+				}).Debug("using date filter sampling")
+			case drivers.SamplingModeRowLimit:
+				// Mode: row_limit - use sample size (-1 means no limit)
+				useDateFilter = false
+				sampleSize = tableConfig.SampleSize
+				log.WithFields(logrus.Fields{
+					"table":       table.Name,
+					"mode":        "row_limit",
+					"sample_size": sampleSize,
+				}).Debug("using row limit sampling")
+			default:
+				// No mode specified, fall back to global sampleSize
+				useDateFilter = false
+				sampleSize = cfg.SampleSize
+				log.WithFields(logrus.Fields{
+					"table":       table.Name,
+					"mode":        "row_limit (default)",
+					"sample_size": sampleSize,
+				}).Debug("using global sample size")
+			}
+		} else {
+			// No table config, use global sampleSize
+			useDateFilter = false
+			sampleSize = cfg.SampleSize
 			log.WithFields(logrus.Fields{
 				"table":       table.Name,
-				"date_column": dateCol,
-				"recent_days": cfg.RecentDays,
-			}).Debug("using date filter for stats collection")
+				"mode":        "row_limit (global)",
+				"sample_size": sampleSize,
+			}).Debug("using global sample size")
 		}
 
 		// Collect column stats
@@ -165,7 +181,7 @@ func (ch *ClickHouse) CollectStats(s *schema.Schema, cfg drivers.StatsConfig) er
 				"progress": fmt.Sprintf("%d/%d (%.1f%%)", colIdx+1, len(table.Columns), float64(completedColumns)/float64(totalColumns)*100),
 			}).Debug("collecting column stats")
 
-			colStats, err := ch.getColumnStats(ctx, s.Name, table.Name, col.Name, col.Type, useDateFilter, dateCol, cfg)
+			colStats, err := ch.getColumnStats(ctx, s.Name, table.Name, col.Name, col.Type, useDateFilter, dateCol, sampleSize, cfg.RecentDays, cfg.TopN)
 			if err != nil {
 				// Save checkpoint and return error
 				if cfg.Checkpoint != nil {
@@ -289,7 +305,7 @@ func extractDateColumn(partitionKey string) string {
 	return ""
 }
 
-func (ch *ClickHouse) getColumnStats(ctx context.Context, dbName, tableName, colName, colType string, useDateFilter bool, dateColumn string, cfg drivers.StatsConfig) (*schema.ColumnStats, error) {
+func (ch *ClickHouse) getColumnStats(ctx context.Context, dbName, tableName, colName, colType string, useDateFilter bool, dateColumn string, sampleSize int, recentDays int, topN int) (*schema.ColumnStats, error) {
 	stats := &schema.ColumnStats{}
 	isNumeric := numericTypeRe.MatchString(colType)
 	isDate := dateTypeRe.MatchString(colType)
@@ -298,7 +314,7 @@ func (ch *ClickHouse) getColumnStats(ctx context.Context, dbName, tableName, col
 	// Build WHERE clause for date filtering
 	whereClause := ""
 	if useDateFilter && dateColumn != "" {
-		whereClause = fmt.Sprintf("WHERE %s >= today() - %d", backquote(dateColumn), cfg.RecentDays)
+		whereClause = fmt.Sprintf("WHERE %s >= today() - %d", backquote(dateColumn), recentDays)
 		log.WithFields(logrus.Fields{
 			"table":        tableName,
 			"column":       colName,
@@ -314,15 +330,19 @@ func (ch *ClickHouse) getColumnStats(ctx context.Context, dbName, tableName, col
 	quotedTable := backquote(tableName)
 
 	// Build the FROM clause:
-	// - If using date filter (recentDays), query all data within date range (no sampleSize limit)
+	// - If using date filter (recentDays), query all data within date range
+	// - If sampleSize is -1, query all data (no limit)
 	// - Otherwise, apply sampleSize limit for sampling
 	var fromClause string
 	if useDateFilter {
 		// Date-filtered query - use all data within the date range
 		fromClause = fmt.Sprintf("FROM %s.%s %s", quotedDB, quotedTable, whereClause)
+	} else if sampleSize == -1 {
+		// No limit - query all data
+		fromClause = fmt.Sprintf("FROM %s.%s", quotedDB, quotedTable)
 	} else {
-		// No date filter - apply sampleSize for sampling
-		fromClause = fmt.Sprintf("FROM (SELECT %s FROM %s.%s LIMIT %d)", quotedCol, quotedDB, quotedTable, cfg.SampleSize)
+		// Row limit sampling - apply sampleSize limit
+		fromClause = fmt.Sprintf("FROM (SELECT %s FROM %s.%s LIMIT %d)", quotedCol, quotedDB, quotedTable, sampleSize)
 	}
 
 	// Build fallback query (basic stats only, no type-specific functions)
@@ -449,7 +469,7 @@ func (ch *ClickHouse) getColumnStats(ctx context.Context, dbName, tableName, col
 				stats.FallbackError = fmt.Sprintf("both type-specific and fallback queries failed: %s", err.Error())
 
 				// Still try to get top values - they might work
-				topValues, topValuesQueryRecord, topErr := ch.getTopValues(ctx, dbName, tableName, colName, whereClause, cfg.TopN, useDateFilter, cfg.SampleSize)
+				topValues, topValuesQueryRecord, topErr := ch.getTopValues(ctx, dbName, tableName, colName, whereClause, topN, useDateFilter, sampleSize)
 				if topErr == nil {
 					stats.TopValues = topValues
 					if topValuesQueryRecord.SQL != "" {
@@ -500,7 +520,7 @@ func (ch *ClickHouse) getColumnStats(ctx context.Context, dbName, tableName, col
 	stats.Queries = append(stats.Queries, schema.QueryRecord{SQL: strings.TrimSpace(query), DurationMs: duration})
 
 	// Get top N values
-	topValues, topValuesQueryRecord, err := ch.getTopValues(ctx, dbName, tableName, colName, whereClause, cfg.TopN, useDateFilter, cfg.SampleSize)
+	topValues, topValuesQueryRecord, err := ch.getTopValues(ctx, dbName, tableName, colName, whereClause, topN, useDateFilter, sampleSize)
 	if err == nil {
 		stats.TopValues = topValues
 		if topValuesQueryRecord.SQL != "" {
@@ -516,8 +536,10 @@ func (ch *ClickHouse) getTopValues(ctx context.Context, dbName, tableName, colNa
 	quotedDB := backquote(dbName)
 	quotedTable := backquote(tableName)
 
-	// If using date filter (recentDays), query the filtered data directly without sampleSize limit.
-	// Otherwise, apply sampleSize to keep top_values consistent with other stats.
+	// Build top values query based on sampling mode:
+	// - If using date filter, query the filtered data directly
+	// - If sampleSize is -1, query all data (no limit)
+	// - Otherwise, apply sampleSize to keep top_values consistent with other stats
 	var query string
 	if useDateFilter {
 		// Date-filtered query - use all data within the date range
@@ -531,8 +553,19 @@ func (ch *ClickHouse) getTopValues(ctx context.Context, dbName, tableName, colNa
 			ORDER BY cnt DESC
 			LIMIT %d
 		`, quotedCol, quotedDB, quotedTable, whereClause, quotedCol, topN)
+	} else if sampleSize == -1 {
+		// No limit - query all data
+		query = fmt.Sprintf(`
+			SELECT
+				toString(%s) as value,
+				count() as cnt
+			FROM %s.%s
+			GROUP BY %s
+			ORDER BY cnt DESC
+			LIMIT %d
+		`, quotedCol, quotedDB, quotedTable, quotedCol, topN)
 	} else {
-		// No date filter - apply sampleSize to be consistent with other stats
+		// Row limit sampling - apply sampleSize to be consistent with other stats
 		query = fmt.Sprintf(`
 			SELECT
 				toString(value) as value,

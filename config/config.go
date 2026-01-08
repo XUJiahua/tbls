@@ -53,23 +53,37 @@ type DetectVirtualRelations struct {
 
 // StatsConfig holds configuration for statistics collection
 type StatsConfig struct {
-	Enabled             bool                        `yaml:"enabled" json:"enabled"`
-	Include             []string                    `yaml:"include,omitempty" json:"include,omitempty"`
-	Exclude             []string                    `yaml:"exclude,omitempty" json:"exclude,omitempty"`
-	TopN                int                         `yaml:"topN,omitempty" json:"topN,omitempty"`
-	SampleSize          int                         `yaml:"sampleSize,omitempty" json:"sampleSize,omitempty"`
-	LargeTableThreshold int64                       `yaml:"largeTableThreshold,omitempty" json:"largeTableThreshold,omitempty"`
-	RecentDays          int                         `yaml:"recentDays,omitempty" json:"recentDays,omitempty"`
-	Inference           InferenceConfig             `yaml:"inference,omitempty" json:"inference,omitempty"`
-	Checkpoint          CheckpointConfig            `yaml:"checkpoint,omitempty" json:"checkpoint,omitempty"`
-	DateColumn          string                      `yaml:"dateColumn,omitempty" json:"dateColumn,omitempty"`
-	Tables              map[string]TableStatsConfig `yaml:"tables,omitempty" json:"tables,omitempty"`
+	Enabled             bool              `yaml:"enabled" json:"enabled"`
+	Include             []string          `yaml:"include,omitempty" json:"include,omitempty"`
+	Exclude             []string          `yaml:"exclude,omitempty" json:"exclude,omitempty"`
+	TopN                int               `yaml:"topN,omitempty" json:"topN,omitempty"`
+	SampleSize          int               `yaml:"sampleSize,omitempty" json:"sampleSize,omitempty"`
+	LargeTableThreshold int64             `yaml:"largeTableThreshold,omitempty" json:"largeTableThreshold,omitempty"`
+	RecentDays          int               `yaml:"recentDays,omitempty" json:"recentDays,omitempty"`
+	Inference           InferenceConfig   `yaml:"inference,omitempty" json:"inference,omitempty"`
+	Checkpoint          CheckpointConfig  `yaml:"checkpoint,omitempty" json:"checkpoint,omitempty"`
+	Tables              []TableStatsConfig `yaml:"tables,omitempty" json:"tables,omitempty"`
 }
 
-// TableStatsConfig holds per-table stats configuration
+// SamplingMode defines how a table should be sampled for stats collection
+type SamplingMode string
+
+const (
+	// SamplingModeDateFilter samples data within a date range (uses dateColumn + recentDays)
+	SamplingModeDateFilter SamplingMode = "date_filter"
+	// SamplingModeRowLimit samples first N rows (uses sampleSize, -1 means no limit)
+	SamplingModeRowLimit SamplingMode = "row_limit"
+)
+
+// TableStatsConfig holds per-table stats configuration with explicit sampling mode.
+// Mode determines how the table is sampled:
+//   - date_filter: query recent data within RecentDays using DateColumn
+//   - row_limit: query first SampleSize rows (-1 means no limit)
 type TableStatsConfig struct {
-	DateColumn string `yaml:"dateColumn,omitempty" json:"dateColumn,omitempty"`
-	Skip       bool   `yaml:"skip,omitempty" json:"skip,omitempty"`
+	Name       string       `yaml:"name" json:"name"`
+	Mode       SamplingMode `yaml:"mode" json:"mode"`
+	DateColumn string       `yaml:"dateColumn,omitempty" json:"dateColumn,omitempty"`
+	SampleSize int          `yaml:"sampleSize,omitempty" json:"sampleSize,omitempty"`
 }
 
 // CheckpointConfig holds configuration for checkpoint/resume functionality

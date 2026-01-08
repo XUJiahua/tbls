@@ -207,17 +207,16 @@ type APIScaffoldDetectVirtualRelConfig struct {
 // APIScaffoldStatsConfig represents statistics collection settings
 // @Description Statistics collection configuration
 type APIScaffoldStatsConfig struct {
-	Enabled             bool                                  `json:"enabled"`
-	Include             []string                              `json:"include,omitempty"`
-	Exclude             []string                              `json:"exclude,omitempty"`
-	TopN                int                                   `json:"topN" example:"10"`
-	SampleSize          int                                   `json:"sampleSize" example:"10000"`
-	LargeTableThreshold int64                                 `json:"largeTableThreshold" example:"1000000"`
-	RecentDays          int                                   `json:"recentDays" example:"30"`
-	DateColumn          string                                `json:"dateColumn,omitempty"`
-	Inference           APIScaffoldInferenceConfig            `json:"inference"`
-	Checkpoint          APIScaffoldCheckpointConfig           `json:"checkpoint"`
-	Tables              map[string]APIScaffoldTableStatConfig `json:"tables,omitempty"`
+	Enabled             bool                         `json:"enabled"`
+	Include             []string                     `json:"include,omitempty"`
+	Exclude             []string                     `json:"exclude,omitempty"`
+	TopN                int                          `json:"topN" example:"10"`
+	SampleSize          int                          `json:"sampleSize" example:"10000"`
+	LargeTableThreshold int64                        `json:"largeTableThreshold" example:"1000000"`
+	RecentDays          int                          `json:"recentDays" example:"30"`
+	Inference           APIScaffoldInferenceConfig   `json:"inference"`
+	Checkpoint          APIScaffoldCheckpointConfig  `json:"checkpoint"`
+	Tables              []APIScaffoldTableStatConfig `json:"tables,omitempty"`
 }
 
 // APIScaffoldInferenceConfig represents inference settings
@@ -239,11 +238,17 @@ type APIScaffoldCheckpointConfig struct {
 	Force   bool   `json:"force"`
 }
 
-// APIScaffoldTableStatConfig represents per-table stats settings
-// @Description Per-table statistics configuration
+// APIScaffoldTableStatConfig represents per-table stats settings with explicit sampling mode
+// @Description Per-table statistics configuration with sampling mode
 type APIScaffoldTableStatConfig struct {
+	// Name is the table name
+	Name string `json:"name"`
+	// Mode is the sampling mode (date_filter or row_limit)
+	Mode string `json:"mode" enums:"date_filter,row_limit"`
+	// DateColumn is the date column for date_filter mode
 	DateColumn string `json:"dateColumn,omitempty"`
-	Skip       bool   `json:"skip"`
+	// SampleSize is the row limit for row_limit mode (-1 means no limit)
+	SampleSize int `json:"sampleSize,omitempty"`
 }
 
 // toConfig converts SchemaRequest to config.Config

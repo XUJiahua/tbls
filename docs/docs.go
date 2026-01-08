@@ -300,9 +300,6 @@ const docTemplate = `{
                 "checkpoint": {
                     "$ref": "#/definitions/cmd.APIScaffoldCheckpointConfig"
                 },
-                "dateColumn": {
-                    "type": "string"
-                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -334,8 +331,8 @@ const docTemplate = `{
                     "example": 10000
                 },
                 "tables": {
-                    "type": "object",
-                    "additionalProperties": {
+                    "type": "array",
+                    "items": {
                         "$ref": "#/definitions/cmd.APIScaffoldTableStatConfig"
                     }
                 },
@@ -346,14 +343,28 @@ const docTemplate = `{
             }
         },
         "cmd.APIScaffoldTableStatConfig": {
-            "description": "Per-table statistics configuration",
+            "description": "Per-table statistics configuration with sampling mode",
             "type": "object",
             "properties": {
                 "dateColumn": {
+                    "description": "DateColumn is the date column for date_filter mode",
                     "type": "string"
                 },
-                "skip": {
-                    "type": "boolean"
+                "mode": {
+                    "description": "Mode is the sampling mode (date_filter or row_limit)",
+                    "type": "string",
+                    "enum": [
+                        "date_filter",
+                        "row_limit"
+                    ]
+                },
+                "name": {
+                    "description": "Name is the table name",
+                    "type": "string"
+                },
+                "sampleSize": {
+                    "description": "SampleSize is the row limit for row_limit mode (-1 means no limit)",
+                    "type": "integer"
                 }
             }
         },

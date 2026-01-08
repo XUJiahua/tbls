@@ -17,6 +17,14 @@ type StatsCollector interface {
 	CollectStats(s *schema.Schema, cfg StatsConfig) error
 }
 
+// DateColumnDetector is an optional interface for drivers that can detect date columns
+// for partition-based filtering during stats collection
+type DateColumnDetector interface {
+	// DetectDateColumns returns a map of table name to detected date column name
+	// The detected date column is used for partition filtering during stats collection
+	DetectDateColumns(s *schema.Schema) (map[string]string, error)
+}
+
 // ProgressReporter is an interface for reporting stats collection progress
 type ProgressReporter interface {
 	// ReportColumn reports progress at column level
@@ -54,18 +62,42 @@ type StatsConfig struct {
 	Progress   ProgressReporter
 	Checkpoint CheckpointUpdater
 
-	// Date column configuration for partition filtering
-	DateColumn string
-	Tables     map[string]TableStatsConfig
+	// Per-table sampling configuration
+	Tables []TableStatsConfig
 
 	// Context for cancellation support
 	Ctx context.Context
 }
 
-// TableStatsConfig holds per-table stats configuration
+// SamplingMode defines how a table should be sampled for stats collection
+type SamplingMode string
+
+const (
+	// SamplingModeDateFilter samples data within a date range (uses dateColumn + recentDays)
+	SamplingModeDateFilter SamplingMode = "date_filter"
+	// SamplingModeRowLimit samples first N rows (uses sampleSize, -1 means no limit)
+	SamplingModeRowLimit SamplingMode = "row_limit"
+)
+
+// TableStatsConfig holds per-table stats configuration with explicit sampling mode.
+// Mode determines how the table is sampled:
+//   - date_filter: query recent data within RecentDays using DateColumn
+//   - row_limit: query first SampleSize rows (-1 means no limit)
 type TableStatsConfig struct {
+	Name       string
+	Mode       SamplingMode
 	DateColumn string
-	Skip       bool
+	SampleSize int
+}
+
+// GetTableConfig returns the config for a specific table, or nil if not found
+func (c *StatsConfig) GetTableConfig(tableName string) *TableStatsConfig {
+	for i := range c.Tables {
+		if c.Tables[i].Name == tableName {
+			return &c.Tables[i]
+		}
+	}
+	return nil
 }
 
 // Option is the type for change Config.

@@ -75,8 +75,6 @@ definitions:
     properties:
       checkpoint:
         $ref: '#/definitions/cmd.APIScaffoldCheckpointConfig'
-      dateColumn:
-        type: string
       enabled:
         type: boolean
       exclude:
@@ -99,20 +97,31 @@ definitions:
         example: 10000
         type: integer
       tables:
-        additionalProperties:
+        items:
           $ref: '#/definitions/cmd.APIScaffoldTableStatConfig'
-        type: object
+        type: array
       topN:
         example: 10
         type: integer
     type: object
   cmd.APIScaffoldTableStatConfig:
-    description: Per-table statistics configuration
+    description: Per-table statistics configuration with sampling mode
     properties:
       dateColumn:
+        description: DateColumn is the date column for date_filter mode
         type: string
-      skip:
-        type: boolean
+      mode:
+        description: Mode is the sampling mode (date_filter or row_limit)
+        enum:
+        - date_filter
+        - row_limit
+        type: string
+      name:
+        description: Name is the table name
+        type: string
+      sampleSize:
+        description: SampleSize is the row limit for row_limit mode (-1 means no limit)
+        type: integer
     type: object
   cmd.CheckpointConfig:
     description: Checkpoint/resume configuration
