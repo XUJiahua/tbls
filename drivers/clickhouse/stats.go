@@ -468,9 +468,11 @@ func (ch *ClickHouse) getColumnStats(ctx context.Context, dbName, tableName, col
 	usedFallback := false
 	var fallbackError string
 
+	originalQuery := query
 	if err := row.Scan(&rowCount, &nullCount, &distinctCount, &minVal, &maxVal, &avgVal, &minDate, &maxDate, &minLen, &maxLen, &avgLen); err != nil {
 		// If the type-specific query failed, try the fallback query
 		if query != fallbackQuery {
+			originalDuration := time.Since(startTime).Milliseconds()
 			log.WithFields(logrus.Fields{
 				"table":  tableName,
 				"column": colName,
@@ -481,6 +483,9 @@ func (ch *ClickHouse) getColumnStats(ctx context.Context, dbName, tableName, col
 			fallbackError = err.Error()
 			usedFallback = true
 
+			// Record the failed original query
+			stats.Queries = append(stats.Queries, schema.QueryRecord{SQL: strings.TrimSpace(originalQuery), DurationMs: originalDuration})
+
 			// Reset type flags since we're falling back
 			isNumeric = false
 			isDate = false
@@ -490,6 +495,7 @@ func (ch *ClickHouse) getColumnStats(ctx context.Context, dbName, tableName, col
 			startTime = time.Now()
 			row = ch.db.QueryRowContext(ctx, fallbackQuery)
 			if err := row.Scan(&rowCount, &nullCount, &distinctCount, &minVal, &maxVal, &avgVal, &minDate, &maxDate, &minLen, &maxLen, &avgLen); err != nil {
+				fallbackDuration := time.Since(startTime).Milliseconds()
 				// Even fallback failed (e.g., view with broken type casting)
 				// Return empty stats with error recorded instead of failing entirely
 				log.WithFields(logrus.Fields{
@@ -500,6 +506,9 @@ func (ch *ClickHouse) getColumnStats(ctx context.Context, dbName, tableName, col
 
 				stats.Fallback = true
 				stats.FallbackError = fmt.Sprintf("both type-specific and fallback queries failed: %s", err.Error())
+
+				// Record the failed fallback query
+				stats.Queries = append(stats.Queries, schema.QueryRecord{SQL: strings.TrimSpace(fallbackQuery), DurationMs: fallbackDuration})
 
 				// Still try to get top values - they might work
 				topValues, topValuesQueryRecord, topErr := ch.getTopValues(ctx, dbName, tableName, colName, whereClause, topN, useDateFilter, sampleSize)
