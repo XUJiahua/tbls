@@ -181,6 +181,52 @@
                     }
                 }
             }
+        },
+        "/schema_sync": {
+            "post": {
+                "description": "Analyze a database synchronously and return the schema directly.\nThis endpoint blocks until the analysis is complete.\nUse this for small databases or when you don't need progress tracking.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Schema"
+                ],
+                "summary": "Analyze schema synchronously",
+                "parameters": [
+                    {
+                        "description": "Schema analysis request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/cmd.SchemaRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Schema analysis result",
+                        "schema": {
+                            "$ref": "#/definitions/cmd.SchemaSyncResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request",
+                        "schema": {
+                            "$ref": "#/definitions/cmd.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/cmd.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -560,6 +606,20 @@
                     "allOf": [
                         {
                             "$ref": "#/definitions/cmd.StatsConfig"
+                        }
+                    ]
+                }
+            }
+        },
+        "cmd.SchemaSyncResponse": {
+            "description": "Response containing the schema analysis result",
+            "type": "object",
+            "properties": {
+                "schema": {
+                    "description": "Schema is the analyzed database schema",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/github_com_k1LoW_tbls_schema.Schema"
                         }
                     ]
                 }

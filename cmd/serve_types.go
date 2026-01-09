@@ -168,6 +168,13 @@ type ErrorResponse struct {
 	Error string `json:"error" example:"dsn.url is required"`
 }
 
+// SchemaSyncResponse is the response for synchronous schema analysis
+// @Description Response containing the schema analysis result
+type SchemaSyncResponse struct {
+	// Schema is the analyzed database schema
+	Schema *schema.Schema `json:"schema"`
+}
+
 // ScaffoldRequest is the request body for POST /scaffold endpoint
 // @Description Request body for generating a scaffolded config
 type ScaffoldRequest struct {

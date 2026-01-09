@@ -264,6 +264,14 @@ definitions:
     required:
     - dsn
     type: object
+  cmd.SchemaSyncResponse:
+    description: Response containing the schema analysis result
+    properties:
+      schema:
+        allOf:
+        - $ref: '#/definitions/github_com_k1LoW_tbls_schema.Schema'
+        description: Schema is the analyzed database schema
+    type: object
   cmd.StatsConfig:
     description: Statistics collection configuration
     properties:
@@ -991,6 +999,39 @@ paths:
           schema:
             $ref: '#/definitions/cmd.ErrorResponse'
       summary: Get task status
+      tags:
+      - Schema
+  /schema_sync:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Analyze a database synchronously and return the schema directly.
+        This endpoint blocks until the analysis is complete.
+        Use this for small databases or when you don't need progress tracking.
+      parameters:
+      - description: Schema analysis request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/cmd.SchemaRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Schema analysis result
+          schema:
+            $ref: '#/definitions/cmd.SchemaSyncResponse'
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/cmd.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/cmd.ErrorResponse'
+      summary: Analyze schema synchronously
       tags:
       - Schema
 swagger: "2.0"

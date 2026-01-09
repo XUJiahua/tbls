@@ -118,6 +118,45 @@ Returns a task ID for polling:
 }
 ```
 
+### POST /schema_sync
+
+Analyze a database synchronously and return the schema directly. This endpoint blocks until the analysis is complete. Use this for small databases or when you don't need progress tracking.
+
+#### Request
+
+The request body is identical to `POST /schema`.
+
+#### Response
+
+**Success (200 OK):**
+
+```json
+{
+  "schema": {
+    "name": "mydb",
+    "tables": [...],
+    "relations": [...],
+    "driver": {...}
+  }
+}
+```
+
+**Error (400 Bad Request):**
+
+```json
+{
+  "error": "dsn.url is required"
+}
+```
+
+**Error (500 Internal Server Error):**
+
+```json
+{
+  "error": "connection refused"
+}
+```
+
 ### GET /schema/status/:task_id
 
 Get the status and progress of a schema analysis task.

@@ -80,6 +80,9 @@ var serveCmd = &cobra.Command{
 		// Async schema analysis
 		r.POST("/schema", handleSchemaAsync)
 
+		// Synchronous schema analysis
+		r.POST("/schema_sync", handleSchemaSync)
+
 		// Get task status
 		r.GET("/schema/status/:task_id", handleSchemaStatus)
 
@@ -294,6 +297,73 @@ func handleSchemaAsync(c *gin.Context) {
 	c.JSON(http.StatusAccepted, TaskAcceptedResponse{
 		TaskID: taskID,
 		Status: "pending",
+	})
+}
+
+// handleSchemaSync godoc
+// @Summary Analyze schema synchronously
+// @Description Analyze a database synchronously and return the schema directly.
+// @Description This endpoint blocks until the analysis is complete.
+// @Description Use this for small databases or when you don't need progress tracking.
+// @Tags Schema
+// @Accept json
+// @Produce json
+// @Param request body SchemaRequest true "Schema analysis request"
+// @Success 200 {object} SchemaSyncResponse "Schema analysis result"
+// @Failure 400 {object} ErrorResponse "Bad request"
+// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Router /schema_sync [post]
+func handleSchemaSync(c *gin.Context) {
+	var req SchemaRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+
+	// Validate DSN is required
+	if req.DSN.URL == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: "dsn.url is required",
+		})
+		return
+	}
+
+	// Convert to config
+	cfg := req.toConfig()
+
+	// Handle force flag - delete existing checkpoint
+	if req.Force {
+		checkpoint.DeleteCheckpoint(req.DSN.URL)
+		cfg.Stats.Checkpoint.Force = true
+	}
+
+	// Analyze database with stats if enabled
+	var s *schema.Schema
+	var err error
+	if cfg.Stats.Enabled {
+		s, err = datasource.AnalyzeWithStats(cfg.DSN, &cfg)
+	} else {
+		s, err = datasource.Analyze(cfg.DSN)
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+
+	// Apply config modifications
+	if err := cfg.ModifySchema(s); err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, SchemaSyncResponse{
+		Schema: s,
 	})
 }
 
