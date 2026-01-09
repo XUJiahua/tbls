@@ -247,14 +247,15 @@ func (t *Table) UnmarshalJSON(data []byte) error {
 // UnmarshalJSON unmarshal JSON to schema.Column.
 func (c *Column) UnmarshalJSON(data []byte) error {
 	s := struct {
-		Name     string       `json:"name"`
-		Type     string       `json:"type"`
-		Nullable bool         `json:"nullable"`
-		Default  *string      `json:"default,omitempty"`
-		Comment  string       `json:"comment,omitempty"`
-		ExtraDef string       `json:"extra_def,omitempty"`
-		Labels   Labels       `json:"labels,omitempty"`
-		Stats    *ColumnStats `json:"stats,omitempty"`
+		Name       string            `json:"name"`
+		Type       string            `json:"type"`
+		Nullable   bool              `json:"nullable"`
+		Default    *string           `json:"default,omitempty"`
+		Comment    string            `json:"comment,omitempty"`
+		ExtraDef   string            `json:"extra_def,omitempty"`
+		Labels     Labels            `json:"labels,omitempty"`
+		Stats      *ColumnStats      `json:"stats,omitempty"`
+		Inferences *ColumnInferences `json:"inferences,omitempty"`
 	}{}
 	err := json.Unmarshal(data, &s)
 	if err != nil {
@@ -274,6 +275,7 @@ func (c *Column) UnmarshalJSON(data []byte) error {
 	c.Labels = s.Labels
 	c.Comment = s.Comment
 	c.Stats = s.Stats
+	c.Inferences = s.Inferences
 	return nil
 }
 
