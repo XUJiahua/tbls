@@ -861,7 +861,6 @@ definitions:
     - StageCompleted
     - StageFailed
     - StageCancelled
-host: localhost:8080
 info:
   contact: {}
   description: |-

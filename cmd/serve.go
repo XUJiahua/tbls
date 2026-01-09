@@ -57,7 +57,6 @@ var taskStore = stats.NewTaskStore()
 // @license.name MIT
 // @license.url https://github.com/k1LoW/tbls/blob/main/LICENSE
 
-// @host localhost:8080
 // @BasePath /
 
 // @tag.name Schema
@@ -86,6 +85,12 @@ var serveCmd = &cobra.Command{
 
 		// Cancel task
 		r.DELETE("/schema/:task_id", handleSchemaCancel)
+
+		// Print startup message with clickable links
+		baseURL := formatBaseURL(serveAddr)
+		logrus.Infof("tbls serve starting...")
+		logrus.Infof("  API:     %s", baseURL)
+		logrus.Infof("  Swagger: %s/swagger/index.html", baseURL)
 
 		return r.Run(serveAddr)
 	},
@@ -438,6 +443,20 @@ func handleSchemaCancel(c *gin.Context) {
 		Status:          "cancelled",
 		CheckpointSaved: true,
 	})
+}
+
+// formatBaseURL converts a listen address to a full URL for display
+func formatBaseURL(addr string) string {
+	// Handle cases like ":8080" -> "http://localhost:8080"
+	if len(addr) > 0 && addr[0] == ':' {
+		return "http://localhost" + addr
+	}
+	// Handle cases like "0.0.0.0:8080" -> "http://localhost:8080"
+	if len(addr) > 7 && addr[:7] == "0.0.0.0" {
+		return "http://localhost" + addr[7:]
+	}
+	// Otherwise assume it's a host:port and add http://
+	return "http://" + addr
 }
 
 func init() {
