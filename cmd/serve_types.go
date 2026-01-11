@@ -68,8 +68,27 @@ type StatsConfig struct {
 	LargeTableThreshold int64 `json:"largeTableThreshold,omitempty" example:"1000000"`
 	// RecentDays is days to look back for large table sampling
 	RecentDays int `json:"recentDays,omitempty" example:"30"`
+	// Inference configures stats-based inference
+	Inference *InferenceConfig `json:"inference,omitempty"`
 	// Checkpoint configures checkpoint/resume functionality
 	Checkpoint *CheckpointConfig `json:"checkpoint,omitempty"`
+}
+
+// InferenceConfig configures stats-based inference
+// @Description Stats-based inference configuration
+type InferenceConfig struct {
+	// Enabled enables inference
+	Enabled bool `json:"enabled,omitempty"`
+	// EnumMaxCardinality is the max cardinality ratio for enum inference
+	EnumMaxCardinality float64 `json:"enumMaxCardinality,omitempty" example:"0.01"`
+	// EnumMaxDistinct is the max distinct values for enum inference
+	EnumMaxDistinct int `json:"enumMaxDistinct,omitempty" example:"20"`
+	// DictMaxCardinality is the max cardinality ratio for dict inference
+	DictMaxCardinality float64 `json:"dictMaxCardinality,omitempty" example:"0.05"`
+	// DictMaxDistinct is the max distinct values for dict inference
+	DictMaxDistinct int `json:"dictMaxDistinct,omitempty" example:"100"`
+	// ForeignKeyMinConfidence is the min confidence for FK inference
+	ForeignKeyMinConfidence float64 `json:"foreignKeyMinConfidence,omitempty" example:"0.7"`
 }
 
 // CheckpointConfig configures checkpoint/resume functionality
@@ -291,6 +310,15 @@ func (r *SchemaRequest) toConfig() config.Config {
 			cfg.Stats.Checkpoint.Enabled = r.Stats.Checkpoint.Enabled
 			cfg.Stats.Checkpoint.TTL = r.Stats.Checkpoint.TTL
 			cfg.Stats.Checkpoint.Force = r.Stats.Checkpoint.Force
+		}
+
+		if r.Stats.Inference != nil {
+			cfg.Stats.Inference.Enabled = r.Stats.Inference.Enabled
+			cfg.Stats.Inference.EnumMaxCardinality = r.Stats.Inference.EnumMaxCardinality
+			cfg.Stats.Inference.EnumMaxDistinct = r.Stats.Inference.EnumMaxDistinct
+			cfg.Stats.Inference.DictMaxCardinality = r.Stats.Inference.DictMaxCardinality
+			cfg.Stats.Inference.DictMaxDistinct = r.Stats.Inference.DictMaxDistinct
+			cfg.Stats.Inference.ForeignKeyMinConfidence = r.Stats.Inference.ForeignKeyMinConfidence
 		}
 	}
 

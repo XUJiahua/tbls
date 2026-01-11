@@ -477,6 +477,41 @@
                 }
             }
         },
+        "cmd.InferenceConfig": {
+            "description": "Stats-based inference configuration",
+            "type": "object",
+            "properties": {
+                "dictMaxCardinality": {
+                    "description": "DictMaxCardinality is the max cardinality ratio for dict inference",
+                    "type": "number",
+                    "example": 0.05
+                },
+                "dictMaxDistinct": {
+                    "description": "DictMaxDistinct is the max distinct values for dict inference",
+                    "type": "integer",
+                    "example": 100
+                },
+                "enabled": {
+                    "description": "Enabled enables inference",
+                    "type": "boolean"
+                },
+                "enumMaxCardinality": {
+                    "description": "EnumMaxCardinality is the max cardinality ratio for enum inference",
+                    "type": "number",
+                    "example": 0.01
+                },
+                "enumMaxDistinct": {
+                    "description": "EnumMaxDistinct is the max distinct values for enum inference",
+                    "type": "integer",
+                    "example": 20
+                },
+                "foreignKeyMinConfidence": {
+                    "description": "ForeignKeyMinConfidence is the min confidence for FK inference",
+                    "type": "number",
+                    "example": 0.7
+                }
+            }
+        },
         "cmd.ProgressInfo": {
             "description": "Detailed progress information during stats collection",
             "type": "object",
@@ -654,6 +689,14 @@
                     "items": {
                         "type": "string"
                     }
+                },
+                "inference": {
+                    "description": "Inference configures stats-based inference",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/cmd.InferenceConfig"
+                        }
+                    ]
                 },
                 "largeTableThreshold": {
                     "description": "LargeTableThreshold is the row count threshold for large table sampling",
