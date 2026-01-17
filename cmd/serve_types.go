@@ -31,6 +31,8 @@ type SchemaRequest struct {
 	Stats *StatsConfig `json:"stats,omitempty"`
 	// Force ignores checkpoint and forces stats collection
 	Force bool `json:"force,omitempty"`
+	// Debug enables debug mode to include query logs in response
+	Debug bool `json:"debug,omitempty"`
 }
 
 // DSNConfig contains database connection configuration

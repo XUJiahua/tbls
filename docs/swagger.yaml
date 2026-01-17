@@ -243,6 +243,9 @@ definitions:
   cmd.SchemaRequest:
     description: Request body for submitting a schema analysis task
     properties:
+      debug:
+        description: Debug enables debug mode to include query logs in response
+        type: boolean
       desc:
         description: Desc is the database description
         type: string
@@ -954,6 +957,7 @@ paths:
         Analyze a database asynchronously. Returns a task ID immediately for progress polling.
         If a task is already running for the same DSN, returns the existing task ID.
         Use force=true to ignore checkpoint and start fresh.
+        Use debug=true to include query logs in the response (useful for debugging stats collection).
       parameters:
       - description: Schema analysis request
         in: body
@@ -1040,6 +1044,7 @@ paths:
         Analyze a database synchronously and return the schema directly.
         This endpoint blocks until the analysis is complete.
         Use this for small databases or when you don't need progress tracking.
+        Use debug=true to include query logs in the response (useful for debugging stats collection).
       parameters:
       - description: Schema analysis request
         in: body

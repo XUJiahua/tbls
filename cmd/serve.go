@@ -242,6 +242,7 @@ func convertToAPIScaffoldConfig(s *ScaffoldConfig) *APIScaffoldConfig {
 // @Description Analyze a database asynchronously. Returns a task ID immediately for progress polling.
 // @Description If a task is already running for the same DSN, returns the existing task ID.
 // @Description Use force=true to ignore checkpoint and start fresh.
+// @Description Use debug=true to include query logs in the response (useful for debugging stats collection).
 // @Tags Schema
 // @Accept json
 // @Produce json
@@ -307,7 +308,7 @@ func handleSchemaAsync(c *gin.Context) {
 	taskStore.SetDSNHash(dsnHash, taskID)
 
 	// Start async processing
-	go processSchemaAsync(taskID, dsnHash, cfg)
+	go processSchemaAsync(taskID, dsnHash, cfg, req.Debug)
 
 	c.JSON(http.StatusAccepted, TaskAcceptedResponse{
 		TaskID: taskID,
@@ -320,6 +321,7 @@ func handleSchemaAsync(c *gin.Context) {
 // @Description Analyze a database synchronously and return the schema directly.
 // @Description This endpoint blocks until the analysis is complete.
 // @Description Use this for small databases or when you don't need progress tracking.
+// @Description Use debug=true to include query logs in the response (useful for debugging stats collection).
 // @Tags Schema
 // @Accept json
 // @Produce json
@@ -377,12 +379,17 @@ func handleSchemaSync(c *gin.Context) {
 		return
 	}
 
+	// Clear queries if debug mode is not enabled
+	if !req.Debug {
+		clearQueriesFromSchema(s)
+	}
+
 	c.JSON(http.StatusOK, SchemaSyncResponse{
 		Schema: s,
 	})
 }
 
-func processSchemaAsync(taskID, dsnHash string, cfg config.Config) {
+func processSchemaAsync(taskID, dsnHash string, cfg config.Config, debug bool) {
 	// Ensure DSN hash mapping is cleared when task completes
 	defer taskStore.ClearDSNHash(dsnHash)
 
@@ -413,6 +420,11 @@ func processSchemaAsync(taskID, dsnHash string, cfg config.Config) {
 			task.CompletedAt = time.Now()
 		})
 		return
+	}
+
+	// Clear queries if debug mode is not enabled
+	if !debug {
+		clearQueriesFromSchema(s)
 	}
 
 	// Store result
@@ -528,6 +540,26 @@ func handleSchemaCancel(c *gin.Context) {
 		Status:          "cancelled",
 		CheckpointSaved: true,
 	})
+}
+
+// clearQueriesFromSchema removes query logs from schema statistics
+// This is used when debug mode is disabled
+func clearQueriesFromSchema(s *schema.Schema) {
+	if s == nil {
+		return
+	}
+	for _, table := range s.Tables {
+		// Clear table-level queries
+		if table.Stats != nil {
+			table.Stats.Queries = nil
+		}
+		// Clear column-level queries
+		for _, column := range table.Columns {
+			if column.Stats != nil {
+				column.Stats.Queries = nil
+			}
+		}
+	}
 }
 
 // formatBaseURL converts a listen address to a full URL for display

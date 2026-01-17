@@ -67,7 +67,7 @@ const docTemplate = `{
         },
         "/schema": {
             "post": {
-                "description": "Analyze a database asynchronously. Returns a task ID immediately for progress polling.\nIf a task is already running for the same DSN, returns the existing task ID.\nUse force=true to ignore checkpoint and start fresh.",
+                "description": "Analyze a database asynchronously. Returns a task ID immediately for progress polling.\nIf a task is already running for the same DSN, returns the existing task ID.\nUse force=true to ignore checkpoint and start fresh.\nUse debug=true to include query logs in the response (useful for debugging stats collection).",
                 "consumes": [
                     "application/json"
                 ],
@@ -191,7 +191,7 @@ const docTemplate = `{
         },
         "/schema_sync": {
             "post": {
-                "description": "Analyze a database synchronously and return the schema directly.\nThis endpoint blocks until the analysis is complete.\nUse this for small databases or when you don't need progress tracking.",
+                "description": "Analyze a database synchronously and return the schema directly.\nThis endpoint blocks until the analysis is complete.\nUse this for small databases or when you don't need progress tracking.\nUse debug=true to include query logs in the response (useful for debugging stats collection).",
                 "consumes": [
                     "application/json"
                 ],
@@ -583,6 +583,10 @@ const docTemplate = `{
                 "dsn"
             ],
             "properties": {
+                "debug": {
+                    "description": "Debug enables debug mode to include query logs in response",
+                    "type": "boolean"
+                },
                 "desc": {
                     "description": "Desc is the database description",
                     "type": "string"
