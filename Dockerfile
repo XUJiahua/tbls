@@ -7,7 +7,8 @@ RUN apt-get update && apt-get install -y sqlite3
 
 RUN update-ca-certificates
 
-RUN make build
+# Build tbls binary (swagger docs are pre-generated and embedded via docs/docs.go)
+RUN go build -tags timetzdata -o tbls
 
 FROM debian:bookworm-slim
 
