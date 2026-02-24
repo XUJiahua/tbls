@@ -12,3 +12,4 @@ coverage.out
 .DS_Store
 .idea
 .claude
+cmd/testdata/serve/

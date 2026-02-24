@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 	"github.com/k1LoW/tbls/schema"
 	"github.com/k1LoW/tbls/stats"
 )
+
+const testOutputDir = "testdata/serve"
 
 func init() {
 	gin.SetMode(gin.TestMode)
@@ -136,6 +139,28 @@ func findTable(s *schema.Schema, name string) *schema.Table {
 	return nil
 }
 
+// saveTestOutput writes data as indented JSON to testdata/serve/<filename>.
+func saveTestOutput(t *testing.T, filename string, data []byte) {
+	t.Helper()
+	if err := os.MkdirAll(testOutputDir, 0o755); err != nil {
+		t.Logf("warning: failed to create output dir: %v", err)
+		return
+	}
+	// Re-indent for readability
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, data, "", "  "); err != nil {
+		// Fall back to raw bytes if indent fails
+		buf.Reset()
+		buf.Write(data)
+	}
+	p := filepath.Join(testOutputDir, filename)
+	if err := os.WriteFile(p, buf.Bytes(), 0o644); err != nil {
+		t.Logf("warning: failed to write %s: %v", p, err)
+		return
+	}
+	t.Logf("saved output to %s", p)
+}
+
 func TestServeAPI(t *testing.T) {
 	router := setupTestRouter()
 
@@ -149,6 +174,7 @@ func TestServeAPI(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 		}
+		saveTestOutput(t, "scaffold_postgres.json", w.Body.Bytes())
 		var resp ScaffoldResponse
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("unmarshal: %v", err)
@@ -169,6 +195,7 @@ func TestServeAPI(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 		}
+		saveTestOutput(t, "scaffold_clickhouse.json", w.Body.Bytes())
 		var resp ScaffoldResponse
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("unmarshal: %v", err)
@@ -200,6 +227,7 @@ func TestServeAPI(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 		}
+		saveTestOutput(t, "schema_sync_postgres.json", w.Body.Bytes())
 		var resp SchemaSyncResponse
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("unmarshal: %v", err)
@@ -230,6 +258,7 @@ func TestServeAPI(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 		}
+		saveTestOutput(t, "schema_sync_postgres_with_stats.json", w.Body.Bytes())
 		var resp SchemaSyncResponse
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("unmarshal: %v", err)
@@ -257,6 +286,7 @@ func TestServeAPI(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 		}
+		saveTestOutput(t, "schema_sync_clickhouse.json", w.Body.Bytes())
 		var resp SchemaSyncResponse
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("unmarshal: %v", err)
@@ -283,6 +313,7 @@ func TestServeAPI(t *testing.T) {
 		if w.Code != http.StatusOK {
 			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
 		}
+		saveTestOutput(t, "schema_sync_clickhouse_with_stats.json", w.Body.Bytes())
 		var resp SchemaSyncResponse
 		if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 			t.Fatalf("unmarshal: %v", err)
@@ -337,6 +368,7 @@ func TestServeAPI(t *testing.T) {
 		if result.Result == nil {
 			t.Fatal("expected result to be non-nil")
 		}
+		saveTestOutput(t, "schema_async_postgres.json", result.Result)
 
 		var s schema.Schema
 		if err := json.Unmarshal(result.Result, &s); err != nil {
@@ -371,6 +403,7 @@ func TestServeAPI(t *testing.T) {
 		if result.Result == nil {
 			t.Fatal("expected result to be non-nil")
 		}
+		saveTestOutput(t, "schema_async_clickhouse.json", result.Result)
 
 		var s schema.Schema
 		if err := json.Unmarshal(result.Result, &s); err != nil {
