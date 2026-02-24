@@ -3,6 +3,7 @@
 package postgres
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"testing"
@@ -30,7 +31,7 @@ func TestMain(m *testing.M) {
 
 func TestAnalyzeView(t *testing.T) {
 	driver := New(db)
-	err := driver.Analyze(s)
+	err := driver.Analyze(context.Background(), s)
 	if err != nil {
 		t.Errorf("%+v", err)
 	}
@@ -43,7 +44,7 @@ func TestAnalyzeView(t *testing.T) {
 
 func TestExtraDef(t *testing.T) {
 	driver := New(db)
-	if err := driver.Analyze(s); err != nil {
+	if err := driver.Analyze(context.Background(), s); err != nil {
 		t.Fatal(err)
 	}
 	tbl, _ := s.FindTableByName("comments")

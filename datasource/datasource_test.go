@@ -49,6 +49,7 @@ func TestAnalyzeSchema(t *testing.T) {
 		schema, err := Analyze(tt.dsn)
 		if err != nil {
 			t.Errorf("%s", err)
+			continue
 		}
 		want := tt.schemaName
 		got := schema.Name
@@ -63,6 +64,7 @@ func TestAnalyzeTables(t *testing.T) {
 		schema, err := Analyze(tt.dsn)
 		if err != nil {
 			t.Errorf("%s", err)
+			continue
 		}
 		want := tt.tableCount
 		got := len(schema.Tables)
@@ -77,6 +79,7 @@ func TestAnalyzeRelations(t *testing.T) {
 		schema, err := Analyze(tt.dsn)
 		if err != nil {
 			t.Errorf("%s", err)
+			continue
 		}
 		want := tt.relationCount
 		got := len(schema.Relations)

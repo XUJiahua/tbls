@@ -3,6 +3,7 @@
 package clickhouse
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -52,7 +53,7 @@ func TestAnalyzeRegularTable(t *testing.T) {
 	}
 	driver := New(db)
 
-	if err := driver.Analyze(s); err != nil {
+	if err := driver.Analyze(context.Background(), s); err != nil {
 		t.Errorf("%v", err)
 	}
 
@@ -84,7 +85,7 @@ func TestAnalyzeDictionary(t *testing.T) {
 	}
 	driver := New(db)
 
-	if err := driver.Analyze(s); err != nil {
+	if err := driver.Analyze(context.Background(), s); err != nil {
 		t.Errorf("%v", err)
 	}
 
@@ -116,7 +117,7 @@ func TestAnalyzeMaterializedView(t *testing.T) {
 	}
 	driver := New(db)
 
-	err := driver.Analyze(s)
+	err := driver.Analyze(context.Background(), s)
 	if err != nil {
 		t.Errorf("%v", err)
 	}
@@ -149,7 +150,7 @@ func TestAnalyzeView(t *testing.T) {
 	}
 	driver := New(db)
 
-	err := driver.Analyze(s)
+	err := driver.Analyze(context.Background(), s)
 	if err != nil {
 		t.Errorf("%v", err)
 	}

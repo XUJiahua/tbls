@@ -23,6 +23,7 @@ ci_windows: depsdev build db_sqlite testdoc_sqlite
 db: db_sqlite # MySQL8 use ./testdata/ddl/mysql:/docker-entrypoint-initdb.d
 	usql pg://postgres:pgpass@localhost:55432/testdb?sslmode=disable -f testdata/ddl/postgres95.sql
 	usql pg://postgres:pgpass@localhost:55413/testdb?sslmode=disable -f testdata/ddl/postgres.sql
+	usql pg://postgres:pgpass@localhost:55413/testdb?sslmode=disable -f testdata/ddl/postgres_stats.sql
 	usql my://root:mypass@localhost:33306/testdb -f testdata/ddl/mysql56.sql
 	usql my://root:mypass@localhost:33308/testdb -c "CREATE DATABASE IF NOT EXISTS relations;"
 	usql my://root:mypass@localhost:33308/relations -f testdata/ddl/detect_relations.sql
@@ -36,11 +37,33 @@ db: db_sqlite # MySQL8 use ./testdata/ddl/mysql:/docker-entrypoint-initdb.d
 db_sqlite:
 	sqlite3 $(PWD)/testdata/testdb.sqlite3 < testdata/ddl/sqlite.sql
 
+db_postgres:
+	docker compose up -d postgres
+	@echo "Waiting for PostgreSQL..."
+	@until docker compose exec postgres pg_isready -U postgres > /dev/null 2>&1; do sleep 1; done
+	PGPASSWORD=pgpass psql -h localhost -p 55413 -U postgres -d testdb -f testdata/ddl/postgres.sql
+	PGPASSWORD=pgpass psql -h localhost -p 55413 -U postgres -d testdb -f testdata/ddl/postgres_stats.sql
+	PGPASSWORD=pgpass psql -h localhost -p 55413 -U postgres -d testdb -c "ANALYZE;"
+
+db_clickhouse:
+	docker compose up -d clickhouse
+	@echo "Waiting for ClickHouse..."
+	@until docker compose exec clickhouse clickhouse-client --query "SELECT 1" > /dev/null 2>&1; do sleep 1; done
+	@echo "ClickHouse ready (DDL loaded via docker-entrypoint-initdb.d)"
+
 test:
 	go test ./... -tags 'bq clickhouse databricks dynamo mariadb mongodb mssql mysql postgres redshift snowflake spanner sqlite' -coverprofile=coverage.out -covermode=count
 
 test-no-db:
 	go test ./... -coverprofile=coverage.out -covermode=count
+
+test-postgres: db_postgres
+	TBLS_TEST_POSTGRES_DSN="pg://postgres:pgpass@localhost:55413/testdb?sslmode=disable" go test ./drivers/postgres/... -tags postgres -v -count=1
+
+test-clickhouse: db_clickhouse
+	TBLS_TEST_CLICKHOUSE_DSN="clickhouse://default@localhost:9000/testdb" go test ./drivers/clickhouse/... -tags clickhouse -v -count=1
+
+test-stats: test-postgres test-clickhouse
 
 doc: build doc_sqlite
 	$(TBLS) doc pg://postgres:pgpass@localhost:55432/testdb?sslmode=disable -c testdata/test_tbls_postgres.yml -f sample/postgres95
@@ -206,4 +229,4 @@ prerelease_for_tagpr: depsdev
 	gocredits -w .
 	git add CHANGELOG.md CREDITS go.mod go.sum
 
-.PHONY: default test
+.PHONY: default test test-no-db test-postgres test-clickhouse test-stats db_postgres db_clickhouse
