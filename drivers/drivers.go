@@ -58,6 +58,9 @@ type StatsConfig struct {
 	LargeTableThreshold int64
 	RecentDays          int
 
+	// Use pg_stats system view instead of direct queries (PostgreSQL only)
+	UsePgStats bool
+
 	// Progress and checkpoint support (optional)
 	Progress   ProgressReporter
 	Checkpoint CheckpointUpdater

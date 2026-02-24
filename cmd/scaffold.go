@@ -176,6 +176,7 @@ type ScaffoldStats struct {
 	SampleSize          int                        `yaml:"sampleSize"`
 	LargeTableThreshold int64                      `yaml:"largeTableThreshold"`
 	RecentDays          int                        `yaml:"recentDays"`
+	UsePgStats          bool                       `yaml:"usePgStats,omitempty"`
 	Inference           ScaffoldInference          `yaml:"inference"`
 	Checkpoint          ScaffoldCheckpoint         `yaml:"checkpoint"`
 	Tables              []ScaffoldTableStatsConfig `yaml:"tables,omitempty"`
@@ -342,6 +343,7 @@ func buildStatsConfig(c *config.Config, s *schema.Schema, detectedDateColumns ma
 		SampleSize:          sampleSize,
 		LargeTableThreshold: largeTableThreshold,
 		RecentDays:          recentDays,
+		UsePgStats:          c.Stats.UsePgStats,
 		Inference:           inference,
 		Checkpoint:          checkpoint,
 		Tables:              tables,

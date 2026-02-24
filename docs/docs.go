@@ -385,6 +385,9 @@ const docTemplate = `{
                 "topN": {
                     "type": "integer",
                     "example": 10
+                },
+                "usePgStats": {
+                    "type": "boolean"
                 }
             }
         },
@@ -728,6 +731,10 @@ const docTemplate = `{
                     "description": "TopN is the number of top values to collect per column",
                     "type": "integer",
                     "example": 10
+                },
+                "usePgStats": {
+                    "description": "UsePgStats uses pg_stats system view instead of direct queries (PostgreSQL only, fast but estimated)",
+                    "type": "boolean"
                 }
             }
         },

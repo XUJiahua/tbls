@@ -53,15 +53,16 @@ type DetectVirtualRelations struct {
 
 // StatsConfig holds configuration for statistics collection
 type StatsConfig struct {
-	Enabled             bool              `yaml:"enabled" json:"enabled"`
-	Include             []string          `yaml:"include,omitempty" json:"include,omitempty"`
-	Exclude             []string          `yaml:"exclude,omitempty" json:"exclude,omitempty"`
-	TopN                int               `yaml:"topN,omitempty" json:"topN,omitempty"`
-	SampleSize          int               `yaml:"sampleSize,omitempty" json:"sampleSize,omitempty"`
-	LargeTableThreshold int64             `yaml:"largeTableThreshold,omitempty" json:"largeTableThreshold,omitempty"`
-	RecentDays          int               `yaml:"recentDays,omitempty" json:"recentDays,omitempty"`
-	Inference           InferenceConfig   `yaml:"inference,omitempty" json:"inference,omitempty"`
-	Checkpoint          CheckpointConfig  `yaml:"checkpoint,omitempty" json:"checkpoint,omitempty"`
+	Enabled             bool               `yaml:"enabled" json:"enabled"`
+	Include             []string           `yaml:"include,omitempty" json:"include,omitempty"`
+	Exclude             []string           `yaml:"exclude,omitempty" json:"exclude,omitempty"`
+	TopN                int                `yaml:"topN,omitempty" json:"topN,omitempty"`
+	SampleSize          int                `yaml:"sampleSize,omitempty" json:"sampleSize,omitempty"`
+	LargeTableThreshold int64              `yaml:"largeTableThreshold,omitempty" json:"largeTableThreshold,omitempty"`
+	RecentDays          int                `yaml:"recentDays,omitempty" json:"recentDays,omitempty"`
+	UsePgStats          bool               `yaml:"usePgStats,omitempty" json:"usePgStats,omitempty"`
+	Inference           InferenceConfig    `yaml:"inference,omitempty" json:"inference,omitempty"`
+	Checkpoint          CheckpointConfig   `yaml:"checkpoint,omitempty" json:"checkpoint,omitempty"`
 	Tables              []TableStatsConfig `yaml:"tables,omitempty" json:"tables,omitempty"`
 }
 

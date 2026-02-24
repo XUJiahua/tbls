@@ -218,6 +218,7 @@ func convertToAPIScaffoldConfig(s *ScaffoldConfig) *APIScaffoldConfig {
 			SampleSize:          s.Stats.SampleSize,
 			LargeTableThreshold: s.Stats.LargeTableThreshold,
 			RecentDays:          s.Stats.RecentDays,
+			UsePgStats:          s.Stats.UsePgStats,
 			Inference: APIScaffoldInferenceConfig{
 				Enabled:                 s.Stats.Inference.Enabled,
 				EnumMaxCardinality:      s.Stats.Inference.EnumMaxCardinality,

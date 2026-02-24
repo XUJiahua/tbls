@@ -103,6 +103,8 @@ definitions:
       topN:
         example: 10
         type: integer
+      usePgStats:
+        type: boolean
     type: object
   cmd.APIScaffoldTableStatConfig:
     description: Per-table statistics configuration with sampling mode
@@ -343,6 +345,10 @@ definitions:
         description: TopN is the number of top values to collect per column
         example: 10
         type: integer
+      usePgStats:
+        description: UsePgStats uses pg_stats system view instead of direct queries
+          (PostgreSQL only, fast but estimated)
+        type: boolean
     type: object
   cmd.TaskAcceptedResponse:
     description: Response when a schema analysis task is accepted

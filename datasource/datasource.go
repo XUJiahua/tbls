@@ -201,7 +201,8 @@ func DetectDateColumns(dsn config.DSN, s *schema.Schema) (map[string]string, err
 		return make(map[string]string), nil
 	}
 
-	if u.Driver == "clickhouse" {
+	switch u.Driver {
+	case "clickhouse":
 		db, err := dburl.Open(urlstr)
 		if err != nil {
 			return nil, err
@@ -209,6 +210,15 @@ func DetectDateColumns(dsn config.DSN, s *schema.Schema) (map[string]string, err
 		defer db.Close()
 
 		driver := clickhouse.New(db)
+		return driver.DetectDateColumns(s)
+	case "postgres":
+		db, err := dburl.Open(urlstr)
+		if err != nil {
+			return nil, err
+		}
+		defer db.Close()
+
+		driver := postgres.New(db)
 		return driver.DetectDateColumns(s)
 	}
 
@@ -250,7 +260,7 @@ func AnalyzeWithStatsAndProgressContext(ctx context.Context, dsn config.DSN, cfg
 
 		if err := collectStatsWithProgress(ctx, s, dsn, cfg, reporter); err != nil {
 			if reporter != nil {
-				if err == clickhouse.ErrCancelled {
+				if err == clickhouse.ErrCancelled || err == postgres.ErrCancelled {
 					reporter.Report(stats.Progress{Stage: stats.StageCancelled})
 				} else {
 					reporter.Report(stats.Progress{Stage: stats.StageFailed})
@@ -361,6 +371,7 @@ func collectStatsWithProgress(ctx context.Context, s *schema.Schema, dsn config.
 		SampleSize:          cfg.Stats.SampleSize,
 		LargeTableThreshold: cfg.Stats.LargeTableThreshold,
 		RecentDays:          cfg.Stats.RecentDays,
+		UsePgStats:          cfg.Stats.UsePgStats,
 		Progress:            progressAdapter,
 		Checkpoint:          checkpointAdapter,
 		Tables:              convertTableStatsConfig(cfg.Stats.Tables),
@@ -388,6 +399,15 @@ func collectStatsWithProgress(ctx context.Context, s *schema.Schema, dsn config.
 		}
 
 		switch u.Driver {
+		case "postgres":
+			db, err := dburl.Open(urlstr)
+			if err != nil {
+				return err
+			}
+			defer db.Close()
+
+			driver := postgres.New(db)
+			collectErr = driver.CollectStats(s, statsCfg)
 		case "clickhouse":
 			db, err := dburl.Open(urlstr)
 			if err != nil {

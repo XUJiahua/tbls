@@ -70,6 +70,8 @@ type StatsConfig struct {
 	LargeTableThreshold int64 `json:"largeTableThreshold,omitempty" example:"1000000"`
 	// RecentDays is days to look back for large table sampling
 	RecentDays int `json:"recentDays,omitempty" example:"30"`
+	// UsePgStats uses pg_stats system view instead of direct queries (PostgreSQL only, fast but estimated)
+	UsePgStats bool `json:"usePgStats,omitempty"`
 	// Inference configures stats-based inference
 	Inference *InferenceConfig `json:"inference,omitempty"`
 	// Checkpoint configures checkpoint/resume functionality
@@ -242,6 +244,7 @@ type APIScaffoldStatsConfig struct {
 	SampleSize          int                          `json:"sampleSize" example:"10000"`
 	LargeTableThreshold int64                        `json:"largeTableThreshold" example:"1000000"`
 	RecentDays          int                          `json:"recentDays" example:"30"`
+	UsePgStats          bool                         `json:"usePgStats"`
 	Inference           APIScaffoldInferenceConfig   `json:"inference"`
 	Checkpoint          APIScaffoldCheckpointConfig  `json:"checkpoint"`
 	Tables              []APIScaffoldTableStatConfig `json:"tables,omitempty"`
@@ -307,6 +310,7 @@ func (r *SchemaRequest) toConfig() config.Config {
 		cfg.Stats.SampleSize = r.Stats.SampleSize
 		cfg.Stats.LargeTableThreshold = r.Stats.LargeTableThreshold
 		cfg.Stats.RecentDays = r.Stats.RecentDays
+		cfg.Stats.UsePgStats = r.Stats.UsePgStats
 
 		if r.Stats.Checkpoint != nil {
 			cfg.Stats.Checkpoint.Enabled = r.Stats.Checkpoint.Enabled
