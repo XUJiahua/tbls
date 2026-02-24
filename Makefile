@@ -63,7 +63,12 @@ test-postgres: db_postgres
 test-clickhouse: db_clickhouse
 	TBLS_TEST_CLICKHOUSE_DSN="clickhouse://default@localhost:9000/testdb" go test ./drivers/clickhouse/... -tags clickhouse -v -count=1
 
-test-stats: test-postgres test-clickhouse
+test-serve: db_postgres db_clickhouse
+	TBLS_TEST_POSTGRES_DSN="pg://postgres:pgpass@localhost:55413/testdb?sslmode=disable" \
+	TBLS_TEST_CLICKHOUSE_DSN="clickhouse://default@localhost:9000/testdb" \
+	go test ./cmd/... -tags "postgres clickhouse" -run TestServeAPI -v -count=1 -timeout 120s
+
+test-stats: test-postgres test-clickhouse test-serve
 
 doc: build doc_sqlite
 	$(TBLS) doc pg://postgres:pgpass@localhost:55432/testdb?sslmode=disable -c testdata/test_tbls_postgres.yml -f sample/postgres95
@@ -229,4 +234,4 @@ prerelease_for_tagpr: depsdev
 	gocredits -w .
 	git add CHANGELOG.md CREDITS go.mod go.sum
 
-.PHONY: default test test-no-db test-postgres test-clickhouse test-stats db_postgres db_clickhouse
+.PHONY: default test test-no-db test-postgres test-clickhouse test-serve test-stats db_postgres db_clickhouse
