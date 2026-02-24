@@ -3,6 +3,7 @@
 package mysql
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"testing"
@@ -33,7 +34,7 @@ func TestAnalyzeView(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = driver.Analyze(s)
+	err = driver.Analyze(context.Background(), s)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +49,7 @@ func TestExtraDef(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := driver.Analyze(s); err != nil {
+	if err := driver.Analyze(context.Background(), s); err != nil {
 		t.Fatal(err)
 	}
 	tbl, _ := s.FindTableByName("comments")

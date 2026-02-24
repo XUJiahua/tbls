@@ -3,6 +3,7 @@
 package mssql
 
 import (
+	"context"
 	"database/sql"
 	"log"
 	"testing"
@@ -33,7 +34,7 @@ func TestMain(m *testing.M) {
 
 func TestAnalyzeView(t *testing.T) {
 	driver := New(db)
-	err := driver.Analyze(s)
+	err := driver.Analyze(context.Background(), s)
 	if err != nil {
 		t.Error(err)
 	}
@@ -63,7 +64,7 @@ func TestInfo(t *testing.T) {
 
 func TestTableWithNonClusteredPrimaryKey(t *testing.T) {
 	driver := New(db)
-	err := driver.Analyze(s)
+	err := driver.Analyze(context.Background(), s)
 	if err != nil {
 		t.Error(err)
 	}

@@ -3,6 +3,7 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -34,7 +35,7 @@ func TestMain(m *testing.M) {
 
 func TestAnalyzeView(t *testing.T) {
 	driver := New(db)
-	err := driver.Analyze(s)
+	err := driver.Analyze(context.Background(), s)
 	if err != nil {
 		t.Errorf("%v", err)
 	}

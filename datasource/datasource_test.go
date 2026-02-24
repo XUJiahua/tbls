@@ -3,6 +3,7 @@ package datasource
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -16,12 +17,13 @@ var tests = []struct {
 	schemaName    string
 	tableCount    int
 	relationCount int
+	requiresDB    bool
 }{
-	{config.DSN{URL: "my://root:mypass@localhost:33306/testdb"}, "testdb", 9, 6},
-	{config.DSN{URL: "pg://postgres:pgpass@localhost:55432/testdb?sslmode=disable"}, "testdb", 17, 12},
-	{config.DSN{URL: "json://../testdata/testdb.json"}, "testdb", 11, 12},
-	{config.DSN{URL: "https://raw.githubusercontent.com/k1LoW/tbls/main/testdata/testdb.json"}, "testdb", 11, 12},
-	{config.DSN{URL: "ms://SA:MSSQLServer-Passw0rd@localhost:11433/testdb"}, "testdb", 14, 8},
+	{config.DSN{URL: "my://root:mypass@localhost:33306/testdb"}, "testdb", 9, 6, true},
+	{config.DSN{URL: "pg://postgres:pgpass@localhost:55432/testdb?sslmode=disable"}, "testdb", 17, 12, true},
+	{config.DSN{URL: "json://../testdata/testdb.json"}, "testdb", 11, 12, false},
+	{config.DSN{URL: "https://raw.githubusercontent.com/k1LoW/tbls/main/testdata/testdb.json"}, "testdb", 11, 12, false},
+	{config.DSN{URL: "ms://SA:MSSQLServer-Passw0rd@localhost:11433/testdb"}, "testdb", 14, 8, true},
 }
 
 func TestMain(m *testing.M) {
@@ -33,8 +35,9 @@ func TestMain(m *testing.M) {
 			schemaName    string
 			tableCount    int
 			relationCount int
+			requiresDB    bool
 		}{
-			config.DSN{URL: "bq://bigquery-public-data/bitcoin_blockchain"}, "bigquery-public-data:bitcoin_blockchain", 2, 0,
+			config.DSN{URL: "bq://bigquery-public-data/bitcoin_blockchain"}, "bigquery-public-data:bitcoin_blockchain", 2, 0, true,
 		}
 		tests = append(tests, bqTest)
 	}
@@ -48,6 +51,9 @@ func TestAnalyzeSchema(t *testing.T) {
 	for _, tt := range tests {
 		schema, err := Analyze(tt.dsn)
 		if err != nil {
+			if tt.requiresDB && isConnectionError(err) {
+				t.Skipf("skipping %s: %s", tt.dsn.URL, err)
+			}
 			t.Errorf("%s", err)
 			continue
 		}
@@ -63,6 +69,9 @@ func TestAnalyzeTables(t *testing.T) {
 	for _, tt := range tests {
 		schema, err := Analyze(tt.dsn)
 		if err != nil {
+			if tt.requiresDB && isConnectionError(err) {
+				t.Skipf("skipping %s: %s", tt.dsn.URL, err)
+			}
 			t.Errorf("%s", err)
 			continue
 		}
@@ -78,6 +87,9 @@ func TestAnalyzeRelations(t *testing.T) {
 	for _, tt := range tests {
 		schema, err := Analyze(tt.dsn)
 		if err != nil {
+			if tt.requiresDB && isConnectionError(err) {
+				t.Skipf("skipping %s: %s", tt.dsn.URL, err)
+			}
 			t.Errorf("%s", err)
 			continue
 		}
@@ -87,6 +99,14 @@ func TestAnalyzeRelations(t *testing.T) {
 			t.Errorf("got %v\nwant %v", got, want)
 		}
 	}
+}
+
+func isConnectionError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "connection refused") ||
+		strings.Contains(msg, "no such host") ||
+		strings.Contains(msg, "connect: connection refused") ||
+		strings.Contains(msg, "i/o timeout")
 }
 
 func TestAnalyzeJSONString(t *testing.T) {

@@ -43,7 +43,7 @@ func TestAnalyze(t *testing.T) {
 	if err != nil {
 		t.Errorf("%v", err)
 	}
-	err = driver.Analyze(s)
+	err = driver.Analyze(ctx, s)
 	if err != nil {
 		t.Errorf("%v", err)
 	}
